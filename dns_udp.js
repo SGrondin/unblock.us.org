@@ -1,7 +1,9 @@
 (function() {
-  var forwardGoogleUDP, sendUDP, udp;
+  var forwardGoogleUDP, parseUDP, sendUDP, udp;
 
   udp = require("dgram");
+
+  parseUDP = function(packet) {};
 
   sendUDP = function(socket, ip, port, data, cb) {
     var clean, done, timeoutSend;
@@ -9,8 +11,10 @@
       done = false;
       socket = udp.createSocket("udp4");
       timeoutSend = setTimeout(function() {
-        clean();
-        return cb(new Error("Time exceeded"));
+        if (!done) {
+          clean();
+          return cb(new Error("Time exceeded"));
+        }
       }, 600);
       clean = function() {
         clearTimeout(timeoutSend);
@@ -47,6 +51,7 @@
     done = false;
     timeoutDown = setTimeout(function() {
       if (!done) {
+        clearTimeout(timeoutAlt);
         done = true;
         return cb(new Error("Time exceeded (" + nbErrors + " errors)"));
       }

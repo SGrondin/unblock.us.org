@@ -15,20 +15,14 @@ TODO:
 
 # Install
 
-### Dependencies
+#### Recompile
 ```
-npm -g install coffee-script
-npm -g install streamline
-```
-
-### Recompile
-```
-_coffee -c .
+./recompile
 ```
 
-### Run
+#### Run
 ```
-sudo ./start.sh &>> logs/watcher.txt &
+sudo ./start.sh &
 ```
 
 Only the master process runs as root, the workers use user `nobody` (make sure it exists).

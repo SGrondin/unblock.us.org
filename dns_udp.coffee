@@ -1,12 +1,16 @@
 udp = require "dgram"
 
+parseUDP = (packet) ->
+
+
 sendUDP = (socket, ip, port, data, cb) ->
 	if not socket?
 		done = false
 		socket = udp.createSocket "udp4"
 		timeoutSend = setTimeout () ->
-			clean()
-			cb new Error "Time exceeded"
+			if not done
+				clean()
+				cb new Error "Time exceeded"
 		, 600
 		clean = () ->
 			clearTimeout timeoutSend
@@ -34,6 +38,7 @@ forwardGoogleUDP = (data, limiterUDP, cb) ->
 	done = false
 	timeoutDown = setTimeout () ->
 		if not done
+			clearTimeout timeoutAlt
 			done = true
 			cb new Error "Time exceeded ("+nbErrors+" errors)"
 	, 800
