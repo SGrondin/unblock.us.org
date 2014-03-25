@@ -11,22 +11,24 @@ TODO:
 
 * Resolve Twitter domains to the server's IP and then tunnel all twitter data.
 * Make it easy to tunnel more domains.
+* Make it easier to run a server.
 
 # Install
 
 ### Dependencies
 ```
-npm install bottleneck
 npm -g install coffee-script
 npm -g install streamline
 ```
 
-### Compile
+### Recompile
 ```
 _coffee -c .
 ```
 
 ### Run
 ```
-./start.sh
+sudo ./start.sh &>> logs/watcher.txt &
 ```
+
+Only the master process runs as root, the workers use user `nobody` (make sure it exists).
