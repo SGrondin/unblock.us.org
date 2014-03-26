@@ -44,17 +44,13 @@ UDPserver.on "close", () ->
 handlerUDP = (data, info, _) ->
 	stats.nbRequestUDP++
 	stats.nbRequestUDPStart++
-	done = false
-	timeoutFail = setTimeout () ->
-		stats.nbFailUDP++
-		stats.nbFailUDPStart++
-	, 3000
 	try
 		# console.log "NBRUNNING: "+limiterUDP._nbRunning
 		[resData, resInfo] = libUDP.forwardGoogleUDP data, limiterUDP, [_]
 		libUDP.sendUDP UDPserver, info.address, info.port, resData, _
-		clearTimeout timeoutFail
 	catch err
+		stats.nbFailUDP++
+		stats.nbFailUDPStart++
 		console.log err.message
 
 UDPserver.on "message", (data, info) -> handlerUDP data, info, ->

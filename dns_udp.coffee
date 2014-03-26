@@ -11,7 +11,7 @@ sendUDP = (socket, ip, port, data, cb) ->
 			if not done
 				clean()
 				cb new Error "Time exceeded"
-		, 600
+		, 800
 		clean = () ->
 			clearTimeout timeoutSend
 			done = true
@@ -30,7 +30,17 @@ sendUDP = (socket, ip, port, data, cb) ->
 				cb null, data, info
 		socket.send data, 0, data.length, port, ip
 	else
-		socket.send data, 0, data.length, port, ip, cb
+		done = false
+		timeoutSend = setTimeout () ->
+			if not done
+				done = true
+				cb "Send2 time exceeded"
+		, 1000
+		socket.send data, 0, data.length, port, ip, () ->
+			clearTimeout timeoutSend
+			if not done
+				done = true
+				cb null
 
 forwardGoogleUDP = (data, limiterUDP, cb) ->
 	# start = Date.now()
@@ -45,7 +55,9 @@ forwardGoogleUDP = (data, limiterUDP, cb) ->
 
 	timeoutAlt = setTimeout () ->
 		limiterUDP.submit sendUDP, null, "8.8.4.4", 53, data, (err, resData, resInfo) ->
-			if err? then nbErrors++
+			if err?
+				# con "ALT", err
+				nbErrors++
 			if not done and not err?
 				clearTimeout timeoutDown
 				done = true
@@ -54,7 +66,9 @@ forwardGoogleUDP = (data, limiterUDP, cb) ->
 	, 80
 
 	limiterUDP.submit sendUDP, null, "8.8.8.8", 53, data, (err, resData, resInfo) ->
-		if err? then nbErrors++
+		if err?
+			# con "MAIN", err
+			nbErrors++
 		if not done and not err?
 			clearTimeout timeoutAlt
 			clearTimeout timeoutDown

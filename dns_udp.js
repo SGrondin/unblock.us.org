@@ -15,7 +15,7 @@
           clean();
           return cb(new Error("Time exceeded"));
         }
-      }, 600);
+      }, 800);
       clean = function() {
         clearTimeout(timeoutSend);
         done = true;
@@ -41,7 +41,20 @@
       });
       return socket.send(data, 0, data.length, port, ip);
     } else {
-      return socket.send(data, 0, data.length, port, ip, cb);
+      done = false;
+      timeoutSend = setTimeout(function() {
+        if (!done) {
+          done = true;
+          return cb("Send2 time exceeded");
+        }
+      }, 1000);
+      return socket.send(data, 0, data.length, port, ip, function() {
+        clearTimeout(timeoutSend);
+        if (!done) {
+          done = true;
+          return cb(null);
+        }
+      });
     }
   };
 
