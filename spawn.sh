@@ -1,3 +1,3 @@
 #! /usr/bin/env bash
 
-node master.js &>> logs/out.txt
+node lib/master.js &>> logs/out.txt

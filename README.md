@@ -11,13 +11,12 @@ TODO:
 
 * Resolve Twitter domains to the server's IP and then tunnel all twitter data.
 * Make it easy to tunnel more domains.
-* Make it easier to run a server.
 
 # Install
 
 #### Recompile
 ```
-./recompile
+./recompile.sh
 ```
 
 #### Run
