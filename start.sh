@@ -11,6 +11,7 @@ if [[ ! -d node_modules ]]; then
 	echo 'Installing dependencies...'
 	sleep 1
 	npm install bottleneck
+	npm install bitconcat
 	npm install coffee-script
 	npm install streamline
 fi
