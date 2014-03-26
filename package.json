@@ -1,0 +1,16 @@
+{
+  "author": {
+    "name": "Simon Grondin"
+  },
+  "repository" : {
+    "type" : "git",
+    "url" : "https://github.com/SGrondin/dns-uncensor.git"
+  },
+  "license": "MIT",
+  "devDependencies":{
+    "bottleneck": "1.1.x",
+    "bitconcat": "0.3.x",
+    "coffee-script": "1.7.x",
+    "streamline": "0.10.x"
+  }
+}

@@ -16,7 +16,7 @@
 
 
   Buffer.prototype.toArray = function() {
-    return Array.prototype.slice(this, 0); };
+    return Array.prototype.slice.call(this, 0); };
 
 
   libUDP = require("./dns_udp");
@@ -74,11 +74,10 @@
   handlerUDP = function handlerUDP__1(data, info, _) { var err, resData, resInfo, _ref; var __frame = { name: "handlerUDP__1", line: 74 }; return __func(_, this, arguments, handlerUDP__1, 2, __frame, function __$handlerUDP__1() {
 
       stats.nbRequestUDP++;
-      stats.nbRequestUDPStart++;
-      con(libUDP.parseUDP(data)); return (function ___(__then) { (function ___(_) { __tryCatch(_, function __$handlerUDP__1() { return (function __$handlerUDP__1(_) {
+      stats.nbRequestUDPStart++; return (function ___(__then) { (function ___(_) { __tryCatch(_, function __$handlerUDP__1() { return (function __$handlerUDP__1(_) {
 
-              return libUDP.forwardGoogleUDP(data, limiterUDP, __cb(_, __frame, 6, 13, function ___(__0, __1) { _ref = __1; resData = _ref[0]; return _(null, resInfo = _ref[1]); }, true, true)); })(__cb(_, __frame, -73, 7, function __$handlerUDP__1() {
-              return libUDP.sendUDP(UDPserver, info.address, info.port, resData, __cb(_, __frame, 7, 13, _, true)); }, true)); }); })(function ___(_error, __result) { __catch(function __$handlerUDP__1() { if (_error) {
+              return libUDP.forwardGoogleUDP(data, limiterUDP, __cb(_, __frame, 5, 13, function ___(__0, __1) { _ref = __1; resData = _ref[0]; return _(null, resInfo = _ref[1]); }, true, true)); })(__cb(_, __frame, -73, 7, function __$handlerUDP__1() {
+              return libUDP.sendUDP(UDPserver, info.address, info.port, resData, __cb(_, __frame, 6, 13, _, true)); }, true)); }); })(function ___(_error, __result) { __catch(function __$handlerUDP__1() { if (_error) {
 
               err = _error;
               stats.nbFailUDP++;
@@ -93,7 +92,7 @@
 
   UDPserver.bind(53);
 
-  handlerTCP = function handlerTCP__2(c, _) { var err; var __frame = { name: "handlerTCP__2", line: 96 }; return __func(_, this, arguments, handlerTCP__2, 1, __frame, function __$handlerTCP__2() { return (function ___(__then) { (function ___(_) { __tryCatch(_, function __$handlerTCP__2() {
+  handlerTCP = function handlerTCP__2(c, _) { var err; var __frame = { name: "handlerTCP__2", line: 95 }; return __func(_, this, arguments, handlerTCP__2, 1, __frame, function __$handlerTCP__2() { return (function ___(__then) { (function ___(_) { __tryCatch(_, function __$handlerTCP__2() {
 
 
             stats.nbRequestTCP++;
@@ -124,7 +123,7 @@
     return process.exit(); });
 
 
-  handlerHTTPS = function handlerHTTPS__3(c, _) { var __frame = { name: "handlerHTTPS__3", line: 127 }; return __func(_, this, arguments, handlerHTTPS__3, 1, __frame, function __$handlerHTTPS__3() { _(); }); };
+  handlerHTTPS = function handlerHTTPS__3(c, _) { var __frame = { name: "handlerHTTPS__3", line: 126 }; return __func(_, this, arguments, handlerHTTPS__3, 1, __frame, function __$handlerHTTPS__3() { _(); }); };
 
   HTTPSserver = tcp.createServer(function(c) {
     return handlerHTTPS(c, function() {  });

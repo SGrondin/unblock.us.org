@@ -3,7 +3,7 @@ tcp = require "net"
 Bottleneck = require "bottleneck"
 util = require "util"
 global.con = () -> util.puts Array::slice.call(arguments, 0).map((a)->util.inspect a).join " "
-Buffer::toArray = () -> Array::slice @, 0
+Buffer::toArray = () -> Array::slice.call @, 0
 libUDP = require "./dns_udp"
 libTCP = require "./dns_tcp"
 limiterUDP = new Bottleneck 50, 0
@@ -45,8 +45,8 @@ UDPserver.on "close", () ->
 handlerUDP = (data, info, _) ->
 	stats.nbRequestUDP++
 	stats.nbRequestUDPStart++
-	con libUDP.parseUDP data
 	try
+		# parsed = libUDP.parseUDP data
 		# console.log "NBRUNNING: "+limiterUDP._nbRunning
 		[resData, resInfo] = libUDP.forwardGoogleUDP data, limiterUDP, [_]
 		libUDP.sendUDP UDPserver, info.address, info.port, resData, _

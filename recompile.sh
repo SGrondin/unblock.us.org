@@ -4,14 +4,15 @@ DIR=$(dirname $0)
 pushd $DIR > /dev/null
 
 if [[ ! -d node_modules ]]; then
-	echo 'Installing compiler tools...'
+	echo 'Installing dependencies...'
 	sleep 1
-	npm install coffee-script
-	npm install streamline
+	npm install
 fi
 
 echo 'Compiling...'
 
 node_modules/streamline/bin/_coffee -c .
+
+echo 'Done.'
 
 popd > /dev/null

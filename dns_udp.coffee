@@ -1,23 +1,45 @@
 udp = require "dgram"
-# bitconcat = require "bitconcat"
+bitconcat = require "bitconcat"
 
 # http://tools.ietf.org/html/rfc1035
 parseUDP = (packet) ->
-	res = {}
-	res.ID = packet[0..1].toArray()
-	res.QR = packet[2] & 0x80 # 10000000
-	res.OPCODE = packet[2] & 0x78 # 01111000
-	res.AA = packet[2] & 0x4 # 00000100
-	res.TC = packet[2] & 0x2 # 00000010
-	res.RD = packet[2] & 0x1 # 00000001
-	res.RA = packet[3] & 0x80 # 10000000
-	res.Z = packet[3] & 0x70 # 01110000
-	res.RCODE = packet[3] & 0xf # 00001111
-	res.QDCOUNT = packet[4..5].toArray()
-	res.ANCOUNT = packet[6..7].toArray()
-	res.NSCOUNT = packet[8..9].toArray()
-	res.ARCOUNT = packet[10..11].toArray()
-	res
+	try
+		if packet.length < 16 then throw new Error "Packet too short to be valid"
+		res = {}
+		res.ID = packet[0..1].toArray()
+		res.QR = packet[2] & 0x80 # 10000000
+		res.OPCODE = packet[2] & 0x78 # 01111000
+		res.AA = packet[2] & 0x4 # 00000100
+		res.TC = packet[2] & 0x2 # 00000010
+		res.RD = packet[2] & 0x1 # 00000001
+		res.RA = packet[3] & 0x80 # 10000000
+		res.Z = packet[3] & 0x70 # 01110000
+		res.RCODE = packet[3] & 0xf # 00001111
+		res.QDCOUNT = packet[4..5].toArray()
+		res.ANCOUNT = packet[6..7].toArray()
+		res.NSCOUNT = packet[8..9].toArray()
+		res.ARCOUNT = packet[10..11].toArray()
+
+		res.QUESTION = {}
+		nb = 0
+		pos = 12
+		len = packet[pos]
+		name = []
+		while len != 0 and nb < 15
+			name.push packet[(pos+1)..(pos+len)].toArray().map((a) -> String.fromCharCode a).reduce (a,b) -> a+b
+			pos += len+1
+			len = packet[pos]
+			nb++
+		res.QUESTION = {
+			NAME : name.join "."
+			TYPE : packet[pos..(pos+1)].toArray()
+			CLASS : packet[(pos+2)..(pos+3)].toArray()
+		}
+		if not (res.QUESTION.NAME.length > 0 and res.QUESTION.CLASS.length == 2) then throw new Error "Invalid QUESTION.NAME"
+		res
+	catch err
+		con err
+		null
 
 sendUDP = (socket, ip, port, data, cb) ->
 	if not socket?
@@ -46,18 +68,18 @@ sendUDP = (socket, ip, port, data, cb) ->
 				cb null, data, info
 		socket.send data, 0, data.length, port, ip
 	else
-		socket.send data, 0, data.length, port, ip, cb
-		# done = false
-		# timeoutSend = setTimeout () ->
-		# 	if not done
-		# 		done = true
-		# 		cb "Send2 time exceeded"
-		# , 1000
-		# socket.send data, 0, data.length, port, ip, () ->
-		# 	clearTimeout timeoutSend
-		# 	if not done
-		# 		done = true
-		# 		cb null
+		# socket.send data, 0, data.length, port, ip, cb
+		done = false
+		timeoutSend = setTimeout () ->
+			if not done
+				done = true
+				cb "Send2 time exceeded"
+		, 1000
+		socket.send data, 0, data.length, port, ip, () ->
+			clearTimeout timeoutSend
+			if not done
+				done = true
+				cb null
 
 forwardGoogleUDP = (data, limiterUDP, cb) ->
 	start = Date.now()
@@ -93,4 +115,4 @@ forwardGoogleUDP = (data, limiterUDP, cb) ->
 			console.log (Date.now()-start), "8.8.8.8"
 			cb null, resData, resInfo
 
-module.exports = {sendUDP, forwardGoogleUDP}
+module.exports = {parseUDP, sendUDP, forwardGoogleUDP}
