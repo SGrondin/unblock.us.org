@@ -6,6 +6,7 @@ global.con = () -> util.puts Array::slice.call(arguments, 0).map((a)->util.inspe
 Buffer::toArray = () -> Array::slice.call @, 0
 libUDP = require "./dns_udp"
 libTCP = require "./dns_tcp"
+libRedirect = require "./redirect"
 limiterUDP = new Bottleneck 50, 0
 limiterTCP = new Bottleneck 30, 0
 stats = {
@@ -22,10 +23,10 @@ stats = {
 ####################
 # PROCESS IS READY #
 ####################
-services = {udp:false, tcp:false, https:false}
+services = {}
 serverStarted = (service) ->
 	services[service] = true
-	if services.udp and services.tcp and services.https
+	if services.udp and services.tcp and services.https and services.http
 		console.log "Server ready", process.pid
 		process.setuid "nobody"
 		process.send {cmd:"online"}
@@ -46,16 +47,24 @@ handlerUDP = (data, info, _) ->
 	stats.nbRequestUDP++
 	stats.nbRequestUDPStart++
 	try
-		# parsed = libUDP.parseUDP data
-		# console.log "NBRUNNING: "+limiterUDP._nbRunning
-		[resData, resInfo] = libUDP.forwardGoogleUDP data, limiterUDP, [_]
+		parsed = libRedirect.parseUDP data
+		answer = libRedirect.getAnswer parsed
+		if answer?
+			resData = answer
+		else
+			[resData, resInfo] = libUDP.forwardGoogleUDP data, limiterUDP, [_]
 		libUDP.sendUDP UDPserver, info.address, info.port, resData, _
 	catch err
 		stats.nbFailUDP++
 		stats.nbFailUDPStart++
+		libUDP.sendUDP UDPserver, info.address, info.port, libRedirect.makeUDP(parsed, libRedirect.SERVERFAILURE), _
 		console.log err.message
 
-UDPserver.on "message", (data, info) -> handlerUDP data, info, ->
+UDPserver.on "message", (data, info) ->
+	try
+		handlerUDP data, info, ->
+	catch err
+		con err
 UDPserver.bind 53
 
 #################
@@ -83,15 +92,20 @@ TCPserver.on "close", () ->
 	con "TCPserver closed"
 	process.exit()
 
-#######################
-# SETUP TWITTER HTTPS #
-#######################
-handlerHTTPS = (c, _) ->
-
+############################
+# SETUP TWITTER HTTP/HTTPS #
+############################
+handlerHTTP_S = (c, port, _) ->
+	google = tcp.createConnection {port:port, host:"199.59.149.198"}, ->
+		con "PIPING!", port
+		c.pipe(google).pipe(c)
 
 HTTPSserver = tcp.createServer((c) ->
-	handlerHTTPS c, ->
+	handlerHTTP_S c, 443, ->
 ).listen 443, () -> serverStarted "https"
+HTTPserver = tcp.createServer((c) ->
+	handlerHTTP_S c, 80, ->
+).listen 80, () -> serverStarted "http"
 # ).listen "./socket/https-twitter.sock"
 
 ###################
@@ -100,7 +114,7 @@ HTTPSserver = tcp.createServer((c) ->
 setInterval () ->
 	if limiterUDP._nbRunning > 40 or limiterTCP._nbRunning > 20
 		con "NBRUNNING: UDP", limiterUDP._nbRunning, "TCP", limiterTCP._nbRunning
-, 1000
+, 3000
 
 setInterval () ->
 	con(process.pid, "UDP", stats.nbFailUDP+"/"+stats.nbRequestUDP, "UDPStart", stats.nbFailUDPStart+"/"+stats.nbRequestUDPStart,
@@ -109,4 +123,4 @@ setInterval () ->
 	stats.nbFailUDP = 0
 	stats.nbRequestTCP = 0
 	stats.nbFailTCP = 0
-, 20000
+, 30000

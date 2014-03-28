@@ -12,6 +12,7 @@ fi
 echo 'Compiling...'
 
 node_modules/streamline/bin/_coffee -c src/
+node_modules/streamline/bin/_coffee -c defs/
 mv src/*.js lib/
 
 echo 'Done.'
