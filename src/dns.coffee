@@ -25,16 +25,16 @@ redirects = {
 			ANCOUNT : [0, 1]
 			NSCOUNT : [0, 0]
 			ARCOUNT : [0, 0]
-			ANSWER  : [0xc0, 0x0c, 0, 1, 0, 1,	# c0 0c A IN
-				0, 0, 0, 4,						# TTL
-				0, 4, 127, 0, 0, 1]				# IP
+			ANSWER  : [0xc0,0x0c, 0,1, 0,1,	# c0 0c A IN
+				0, 0, 0, 4,					# TTL
+				0, 4, 127,0,0,1]			# IP
 		}
 		"AAAA" : {
 			RCODE	: 0
 			ANCOUNT : [0, 1]
 			NSCOUNT : [0, 0]
 			ARCOUNT : [0, 0]
-			ANSWER  : [0xc0, 0x0c, 0, 0x1c, 0, 1,		# c0 0c AAAA IN
+			ANSWER  : [0xc0,0x0c, 0,0x1c, 0,1,			# c0 0c AAAA IN
 				0, 0, 0, 4,								# TTL
 				0, 16, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]	# IP
 		}
@@ -42,6 +42,8 @@ redirects = {
 }
 
 parse2Bytes = (buf) -> (buf[0] << 8) | buf[1]
+make2Bytes = (i) -> [((i & 0xFF00) >>> 8), (i & 0xFF)]
+prependLength = (buf) -> Buffer.concat [(new Buffer make2Bytes buf.length), buf]
 getType = (buf) ->
 	p = parse2Bytes buf
 	if TYPES[p]? then TYPES[p] else "INVALID"
@@ -49,7 +51,7 @@ getClass = (buf) ->
 	p = parse2Bytes buf
 	if CLASSES[p]? then CLASSES[p] else "INVALID"
 
-parseUDP = (packet) ->
+parseDNS = (packet) ->
 	try
 		if packet.length < 16 then throw new Error "Packet too short to be valid"
 		res = {}
@@ -91,7 +93,7 @@ parseUDP = (packet) ->
 		con err
 		null
 
-makeUDP = (parsed, redirect) ->
+makeDNS = (parsed, redirect, isTCP) ->
 	flags = new bitconcat
 	flags.append 1,				1		# QR
 	flags.append parsed.OPCODE,	4		# OPCODE
@@ -104,7 +106,7 @@ makeUDP = (parsed, redirect) ->
 	flags.append 0,				1		# CD
 	flags.append redirect.RCODE,4		# RCODE
 
-	new Buffer Array::concat.call(
+	ret = Array::concat.call(
 		parsed.ID.toArray(),			# ID
 		flags.getData(),				# Flags
 		[0, 1],							# QDCOUNT
@@ -114,13 +116,17 @@ makeUDP = (parsed, redirect) ->
 		parsed.QUESTION.raw.toArray()	# QUESTION
 		redirect.ANSWER
 	)
+	if isTCP?
+		new Buffer make2Bytes(ret.length).concat ret
+	else
+		new Buffer ret
 
-getAnswer = (parsed) ->
+getAnswer = (parsed, isTCP) ->
 	domain = parsed.QUESTION.NAME[-2..].join "."
 	con domain, parsed.QUESTION.CLASS, parsed.QUESTION.TYPE
 	if redirects[domain]?[parsed.QUESTION.TYPE]? and parsed.QUESTION.CLASS == "IN"
-		makeUDP parsed, redirects[domain][parsed.QUESTION.TYPE]
+		makeDNS parsed, redirects[domain][parsed.QUESTION.TYPE], isTCP
 	else
 		null
 
-module.exports = {parseUDP, makeUDP, getAnswer, SERVERFAILURE, NAMEERROR}
+module.exports = {parse2Bytes, make2Bytes, prependLength, parseDNS, makeDNS, getAnswer, SERVERFAILURE, NAMEERROR}

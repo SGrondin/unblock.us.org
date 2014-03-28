@@ -7,10 +7,9 @@ It works by forwarding all DNS lookups to Google (8.8.8.8 or 8.8.4.4). There's s
 
 There's no logging/history whatsoever, except for how many requests/second it serves.
 
-TODO:
+All Twitter requests are hijacked and then tunnelled to Twitter's servers.
 
-* Resolve Twitter domains to the server's IP and then tunnel all twitter data.
-* Make it easy to tunnel more domains.
+TODO: Support hijacking for more than 1 domain.
 
 # Install
 

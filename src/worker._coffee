@@ -2,11 +2,14 @@ udp = require "dgram"
 tcp = require "net"
 Bottleneck = require "bottleneck"
 util = require "util"
+stream = require "stream"
 global.con = () -> util.puts Array::slice.call(arguments, 0).map((a)->util.inspect a).join " "
 Buffer::toArray = () -> Array::slice.call @, 0
+Buffer::map = (f) -> new Buffer Array::map.call @, f
+Buffer::reduce = (f) -> Array::reduce.call @, f
 libUDP = require "./dns_udp"
 libTCP = require "./dns_tcp"
-libRedirect = require "./redirect"
+libDNS = require "./dns"
 limiterUDP = new Bottleneck 50, 0
 limiterTCP = new Bottleneck 30, 0
 stats = {
@@ -47,8 +50,8 @@ handlerUDP = (data, info, _) ->
 	stats.nbRequestUDP++
 	stats.nbRequestUDPStart++
 	try
-		parsed = libRedirect.parseUDP data
-		answer = libRedirect.getAnswer parsed
+		parsed = libDNS.parseDNS data
+		answer = libDNS.getAnswer parsed
 		if answer?
 			resData = answer
 		else
@@ -57,12 +60,12 @@ handlerUDP = (data, info, _) ->
 	catch err
 		stats.nbFailUDP++
 		stats.nbFailUDPStart++
-		libUDP.sendUDP UDPserver, info.address, info.port, libRedirect.makeUDP(parsed, libRedirect.SERVERFAILURE), _
+		libUDP.sendUDP UDPserver, info.address, info.port, libDNS.makeDNS(parsed, libDNS.SERVERFAILURE), _
 		console.log err.message
 
 UDPserver.on "message", (data, info) ->
 	try
-		handlerUDP data, info, ->
+		handlerUDP data, info, (err) -> if err? then throw err
 	catch err
 		con err
 UDPserver.bind 53
@@ -71,10 +74,22 @@ UDPserver.bind 53
 # SETUP DNS TCP #
 #################
 handlerTCP = (c, _) ->
+	stats.nbRequestTCP++
+	stats.nbRequestTCPStart++
 	try
-		stats.nbRequestTCP++
-		stats.nbRequestTCPStart++
-		limiterTCP.submit libTCP.forwardGoogleTCP, c, _
+		data = libTCP.getRequest c, _
+		parsed = libDNS.parseDNS data
+		answer = libDNS.getAnswer parsed, true
+		if answer?
+			c.end answer
+		else
+			google = limiterTCP.submit libTCP.getGoogleStream, _
+			google.on "error", (err) -> throw err
+			google.on "close", (hadError) ->
+				if hadError then throw new Error "GoogleStreamClosed"
+				c.destroy()
+			google.pipe c
+			google.write libDNS.prependLength data
 	catch err
 		con err
 		stats.nbFailTCP++
