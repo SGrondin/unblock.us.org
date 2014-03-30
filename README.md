@@ -12,30 +12,27 @@ All Twitter requests are hijacked and then tunnelled to Twitter's servers.
 
 # Install
 
-Create user ```nobody``` with minimal permissions.
+Create the user ```nobody``` with minimal permissions.
 
-Compile and install Node 0.10.x.
+Compile and install [Node](https://github.com/joyent/node) 0.10.x.
 
-Compile and install nginx 1.4.x with ```./configure --with-http_ssl_module --with-ipv6```
+Compile and install [nginx](http://nginx.org/en/download.html) 1.4.x with ```./configure --with-http_ssl_module --with-ipv6```
 
-Create the following ```server``` block inside of the main ```http``` block in nginx.conf:
+Create the following ```server``` block inside of the main ```http``` block in ```nginx.conf```:
 ```
 server {
-		listen [::]:80 default_server;
-		server_name _;
+	listen [::]:80 default_server;
+	server_name _;
+	access_log off;
 
-		location / {
-				return 302 http://localhost/vpn/$host$request_uri$is_args$args;
-		}
-		location ~ ^/vpn/(.*)$ {
-				resolver 8.8.8.8;
-				proxy_pass http://$1$is_args$args;
-		}
+	location / {
+		resolver 8.8.8.8;
+		proxy_pass http://$host$request_uri$is_args$args;
+	}
 }
 ```
-Replace ```localhost``` with the name of your domain.
 
-Edit settings.json with the IPv4 and IPv6 addresses of your server and the domains you want to tunnel.
+Edit ```settings.json``` with the IPv4 and IPv6 addresses of your server and the domains you want to tunnel.
 
 Then start the server.
 
@@ -46,7 +43,7 @@ sudo ./start.sh &
 
 #### Recompile
 
-Modifications to ```.coffee``` and ```._coffee``` require recompilation.
+Modifications to ```.coffee``` and ```._coffee``` files require recompilation.
 ```
 ./recompile.sh
 ```
