@@ -1,0 +1,8 @@
+{
+	"IPv4" : [127, 0, 0, 1],
+	"IPv6" : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+	"redirected_domains" : {
+		"wikipedia.org" : true,
+		"wikimedia.org" : true
+	}
+}

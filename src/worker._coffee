@@ -3,7 +3,7 @@ tcp = require "net"
 Bottleneck = require "bottleneck"
 util = require "util"
 stream = require "stream"
-global.con = () -> util.puts Array::slice.call(arguments, 0).map((a)->util.inspect a).join " "
+global.con = () -> util.puts Array::concat(new Date().toISOString(), Array::slice.call(arguments, 0)).map((a)->util.inspect a).join " "
 Buffer::toArray = () -> Array::slice.call @, 0
 Buffer::map = (f) -> new Buffer Array::map.call @, f
 Buffer::reduce = (f) -> Array::reduce.call @, f
@@ -29,7 +29,7 @@ stats = {
 services = {}
 serverStarted = (service) ->
 	services[service] = true
-	if services.udp and services.tcp and services.https and services.http
+	if services.udp and services.tcp #and services.https and services.http
 		console.log "Server ready", process.pid
 		process.setuid "nobody"
 		process.send {cmd:"online"}
@@ -110,17 +110,17 @@ TCPserver.on "close", () ->
 ############################
 # SETUP TWITTER HTTP/HTTPS #
 ############################
-handlerHTTP_S = (c, port, _) ->
-	google = tcp.createConnection {port:port, host:"199.59.149.198"}, ->
-		con "PIPING!", port
-		c.pipe(google).pipe(c)
+# handlerHTTP_S = (c, port, _) ->
+# 	google = tcp.createConnection {port:port, host:"199.59.149.198"}, ->
+# 		con "PIPING!", port
+# 		c.pipe(google).pipe(c)
 
-HTTPSserver = tcp.createServer((c) ->
-	handlerHTTP_S c, 443, ->
-).listen 443, () -> serverStarted "https"
-HTTPserver = tcp.createServer((c) ->
-	handlerHTTP_S c, 80, ->
-).listen 80, () -> serverStarted "http"
+# HTTPSserver = tcp.createServer((c) ->
+# 	handlerHTTP_S c, 443, ->
+# ).listen 443, () -> serverStarted "https"
+# HTTPserver = tcp.createServer((c) ->
+# 	handlerHTTP_S c, 80, ->
+# ).listen 80, () -> serverStarted "http"
 # ).listen "./socket/https-twitter.sock"
 
 ###################

@@ -1,7 +1,12 @@
 bitconcat = require "bitconcat"
 TYPES = require "../defs/types"
 CLASSES = require "../defs/classes"
-IPv4 = "176.58.120.112"
+settings = require "../settings.json"
+# IPv4 = [176, 58, 120, 112]
+# IPv6 = [0x2a,0x01, 0x7e,0x00, 0,0,0,0, 0xf0,0x3c, 0x91,0xff, 0xfe,0xae, 0xe9,0x6e] # 2a01:7e00::f03c:91ff:feae:e96e
+IPv4 = [127, 0, 0, 1]
+IPv6 = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]
+
 
 # http://tools.ietf.org/html/rfc1035
 SERVERFAILURE = {
@@ -18,26 +23,25 @@ NAMEERROR = {
 	ARCOUNT	: 0
 	ANSWER	: []
 }
-redirects = {
-	"twitter.com" : {
-		"A" : {
-			RCODE	: 0
-			ANCOUNT : [0, 1]
-			NSCOUNT : [0, 0]
-			ARCOUNT : [0, 0]
-			ANSWER  : [0xc0,0x0c, 0,1, 0,1,	# c0 0c A IN
-				0, 0, 0, 4,					# TTL
-				0, 4, 127,0,0,1]			# IP
-		}
-		"AAAA" : {
-			RCODE	: 0
-			ANCOUNT : [0, 1]
-			NSCOUNT : [0, 0]
-			ARCOUNT : [0, 0]
-			ANSWER  : [0xc0,0x0c, 0,0x1c, 0,1,			# c0 0c AAAA IN
-				0, 0, 0, 4,								# TTL
-				0, 16, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]	# IP
-		}
+redirected_types = {"A", "AAAA"}
+redirection = {
+	"A" : {
+		RCODE	: 0
+		ANCOUNT : [0, 1]
+		NSCOUNT : [0, 0]
+		ARCOUNT : [0, 0]
+		ANSWER  : [0xc0,0x0c, 0,1, 0,1,		# c0 0c A IN
+			0, 0, 0, 4,						# TTL
+			0, 4,].concat settings.IPv4		# IP
+	}
+	"AAAA" : {
+		RCODE	: 0
+		ANCOUNT : [0, 1]
+		NSCOUNT : [0, 0]
+		ARCOUNT : [0, 0]
+		ANSWER  : [0xc0,0x0c, 0,0x1c, 0,1,	# c0 0c AAAA IN
+			0, 0, 0, 4,						# TTL
+			0, 16].concat settings.IPv6		# IP
 	}
 }
 
@@ -122,10 +126,10 @@ makeDNS = (parsed, redirect, isTCP) ->
 		new Buffer ret
 
 getAnswer = (parsed, isTCP) ->
-	domain = parsed.QUESTION.NAME[-2..].join "."
-	con domain, parsed.QUESTION.CLASS, parsed.QUESTION.TYPE
-	if redirects[domain]?[parsed.QUESTION.TYPE]? and parsed.QUESTION.CLASS == "IN"
-		makeDNS parsed, redirects[domain][parsed.QUESTION.TYPE], isTCP
+	domain = parsed.QUESTION.NAME[-2..].join "." # Fails on .co.uk, will fix when the need arises
+
+	if settings.redirected_domains[domain]? and redirected_types[parsed.QUESTION.TYPE]? and parsed.QUESTION.CLASS == "IN"
+		makeDNS parsed, redirection[parsed.QUESTION.TYPE], isTCP
 	else
 		null
 
