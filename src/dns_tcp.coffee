@@ -14,15 +14,9 @@ forwardGoogleTCP = (client, cb) ->
 getRequest = (client, cb) ->
 	received = []
 	lengthExpected = null
-	done = false
 	clean = (err, req) ->
-		if not done
-			done = true
-			client.removeAllListeners()
-			if err?
-				cb err
-			else
-				cb null, req
+		client.removeAllListeners()
+		cb err, req
 	client.on "error", (err) ->	clean err
 	client.on "timeout", () -> clean new Error "getRequestClientTimeout"
 	client.on "data", (chunk) -> # Callback as soon as all the data has arrived

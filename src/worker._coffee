@@ -60,7 +60,7 @@ handlerUDP = (data, info, _) ->
 		stats.nbFailUDP++
 		stats.nbFailUDPStart++
 		libUDP.sendUDP UDPserver, info.address, info.port, libDNS.makeDNS(parsed, libDNS.SERVERFAILURE), _
-		console.log err.message
+		console.log err.stack
 
 UDPserver.on "message", (data, info) ->
 	try
