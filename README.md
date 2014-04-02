@@ -7,7 +7,12 @@ It works by forwarding all DNS lookups to Google (8.8.8.8 or 8.8.4.4). There's s
 
 There's no logging/history whatsoever, except for how many requests/second it serves.
 
-All Twitter requests are hijacked and then tunnelled to Twitter's servers.
+All requests for domains listed in settings.js are tunneled instead, to avoid the IP ban.
+
+TODO:
+
+* Cleaner restart/reload
+* Support subdomain wildcard
 
 
 # Install
@@ -21,18 +26,20 @@ Compile and install [nginx](http://nginx.org/en/download.html) 1.4.x with ```./c
 Create the following ```server``` block inside of the main ```http``` block in ```nginx.conf```:
 ```
 server {
-	listen [::]:80 default_server;
-	server_name _;
-	access_log off;
-
-	location / {
-		resolver 8.8.8.8;
-		proxy_pass http://$host$request_uri$is_args$args;
-	}
+    listen [::]:80 default_server;
+    listen 80 default_server;
+    server_name _;
+    access_log off;
+    location / {
+        resolver 8.8.8.8;
+        proxy_pass http://$http_host$request_uri;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
 }
 ```
 
-Edit ```settings.json``` with the IPv4 and IPv6 addresses of your server and the domains you want to tunnel.
+Edit ```settings.js``` with the IPv4 and IPv6 addresses of your server and the domains you want to tunnel.
 
 Then start the server.
 

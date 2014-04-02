@@ -7,10 +7,6 @@ getGoogleStream = (cb) ->
 		cb null, google
 
 
-forwardGoogleTCP = (client, cb) ->
-	google = tcp.createConnection {port:53, host:"8.8.8.8"}, ->
-		client.pipe(google).pipe(client)
-
 getRequest = (client, cb) ->
 	received = []
 	lengthExpected = null
@@ -25,6 +21,6 @@ getRequest = (client, cb) ->
 			lengthExpected = libDNS.parse2Bytes Buffer.concat(received)[0..1]
 		if lengthExpected? and lengthExpected >= client.bytesRead-2
 			clean null, Buffer.concat(received)[2..lengthExpected+1]
-	client.on "end", () -> clean "getRequestClientClosedConnection"
+	client.on "end", () -> clean "TCPgetRequestClientClosedConnection"
 
-module.exports = {getGoogleStream, forwardGoogleTCP, getRequest}
+module.exports = {getGoogleStream, getRequest}

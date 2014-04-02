@@ -6,7 +6,7 @@ sendUDP = (socket, ip, port, data, cb) ->
 		socket = udp.createSocket "udp4"
 		timeoutSend = setTimeout () ->
 			clean new Error "Time exceeded"
-		, 800
+		, 1500
 		clean = (err, data, info) ->
 			clean = ->
 			clearTimeout timeoutSend
@@ -35,7 +35,7 @@ forwardGoogleUDP = (data, limiterUDP, cb) ->
 		cb err, data, info
 	timeoutDown = setTimeout () ->
 		clean new Error "Time exceeded ("+nbErrors+" errors)"
-	, 800
+	, 1500
 
 	timeoutAlt = setTimeout () ->
 		limiterUDP.submit sendUDP, null, "8.8.4.4", 53, data, (err, resData, resInfo) ->

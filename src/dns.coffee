@@ -41,6 +41,7 @@ redirection = {
 }
 
 parse2Bytes = (buf) -> (buf[0] << 8) | buf[1]
+parse3Bytes = (buf) -> (buf[0] << 16) | (buf[1] << 8) | buf[2]
 make2Bytes = (i) -> [((i & 0xFF00) >>> 8), (i & 0xFF)]
 prependLength = (buf) -> Buffer.concat [(new Buffer make2Bytes buf.length), buf]
 getType = (buf) ->
@@ -123,9 +124,9 @@ makeDNS = (parsed, redirect, isTCP) ->
 getAnswer = (parsed, isTCP) ->
 	domain = parsed.QUESTION.NAME[-2..].join "." # Fails on .co.uk, will fix when the need arises
 
-	if settings.redirected_domains[domain]? and redirected_types[parsed.QUESTION.TYPE]? and parsed.QUESTION.CLASS == "IN"
+	if settings.hijacked[domain]? and redirected_types[parsed.QUESTION.TYPE]? and parsed.QUESTION.CLASS == "IN"
 		makeDNS parsed, redirection[parsed.QUESTION.TYPE], isTCP
 	else
 		null
 
-module.exports = {parse2Bytes, make2Bytes, prependLength, parseDNS, makeDNS, getAnswer, SERVERFAILURE, NAMEERROR}
+module.exports = {parse2Bytes, parse3Bytes, make2Bytes, prependLength, parseDNS, makeDNS, getAnswer, SERVERFAILURE, NAMEERROR}

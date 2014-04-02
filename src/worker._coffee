@@ -9,6 +9,7 @@ Buffer::reduce = (f) -> Array::reduce.call @, f
 libUDP = require "./dns_udp"
 libTCP = require "./dns_tcp"
 libDNS = require "./dns"
+libHTTPS = require "./https"
 limiterUDP = new Bottleneck 50, 0
 limiterTCP = new Bottleneck 30, 0
 stats = {
@@ -26,12 +27,16 @@ stats = {
 # PROCESS IS READY #
 ####################
 services = {}
-serverStarted = (service) ->
-	services[service] = true
-	if services.udp and services.tcp #and services.https and services.http
-		console.log "Server ready", process.pid
-		process.setuid "nobody"
-		process.send {cmd:"online"}
+serverStarted = (service, _) ->
+	try
+		services[service] = true
+		if services.udp and services.tcp and services.https
+			process.setuid "nobody"
+			console.log "Server ready", process.pid
+			process.send {cmd:"online"}
+	catch err
+		con err
+		con err.message
 
 #################
 # SETUP DNS UDP #
@@ -40,7 +45,7 @@ UDPserver = udp.createSocket "udp4"
 UDPserver.on "error", (err) ->
 	console.log "----------\n", util.inspect(err), "\n----------"
 	process.exit()
-UDPserver.on "listening", () -> serverStarted "udp"
+UDPserver.on "listening", () -> serverStarted "udp", !_
 UDPserver.on "close", () ->
 	con "UDPserver closed"
 	process.exit()
@@ -98,14 +103,43 @@ handlerTCP = (c, _) ->
 
 TCPserver = tcp.createServer((c) ->
 	handlerTCP c, ->
-).listen 53, () -> serverStarted "tcp"
+).listen 53, () -> serverStarted "tcp", !_
 TCPserver.on "error", (err) ->
 	console.log "----------\n", util.inspect(err), "\n----------"
 	process.exit()
 TCPserver.on "close", () ->
 	con "TCPserver closed"
 	process.exit()
--
+
+######################
+# SETUP HTTPS TUNNEL #
+######################
+
+handlerHTTPS = (c, _) ->
+	try
+		[host, received] = libHTTPS.getRequest c, [_]
+		stream = libHTTPS.getHTTPSstream host, _
+		con host
+		con received
+		stream.pipe c
+		stream.write received
+		c.pipe stream
+	catch err
+		con err
+
+HTTPSserver = tcp.createServer((c) ->
+	con "listeninnnnng"
+	handlerHTTPS c, ->
+).listen 443, () ->
+	con "!!!"
+	serverStarted "https", !_
+HTTPSserver.on "error", (err) ->
+	console.log "----------\n", util.inspect(err), "\n", err.message, "\n----------"
+	process.exit()
+HTTPSserver.on "close", () ->
+	con "HTTPSserver closed"
+	process.exit()
+
 ###################
 # PRINT DNS STATS #
 ###################
@@ -121,4 +155,4 @@ setInterval () ->
 	stats.nbFailUDP = 0
 	stats.nbRequestTCP = 0
 	stats.nbFailTCP = 0
-, 30000
+, (60 * 1000)
