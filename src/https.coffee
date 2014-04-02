@@ -42,26 +42,31 @@ parseHTTPS = (packet) ->
 		res.hostLength = libDNS.parse2Bytes packet[pos..(pos+1)]
 		pos += 2
 		res.host = packet[pos..(pos+res.hostLength-1)].toString "utf8"
+		res
 	else
-		throw new Error "No SNI found."
-	res
+		null
 
 getHTTPSstream = (domain, cb) ->
-	# s = tcp.createConnection {port:443, host}
-	s = tcp.createConnection {port:443, host:"74.125.226.137"}
+	# s = tcp.createConnection {port:443, host:domain}
+	s = tcp.createConnection {port:443, host:"206.167.212.37"}
 	s.on "connect", () ->
 		cb null, s
 
 getRequest = (c, cb) ->
-	received = new Buffer []
-	clean = (err, host) ->
-		c.removeAllListeners()
-		cb err, host, received
+	received = []
+	buf = new Buffer []
+	clean = (err, host, buf) ->
+		c.removeAllListeners("data")
+		cb err, host, buf
 	c.on "data", (data) ->
-		received = Buffer.concat [received, data]
-		ssl = parseHTTPS received
+		c.pause()
+		received.push data
+		buf = Buffer.concat received
+		ssl = parseHTTPS buf
 		if ssl?.host?
-			clean null, ssl.host, received
+			clean null, ssl.host, buf
+		else
+			c.resume()
 	c.on "timeout", () -> clean new Error "HTTPS getRequest timeout"
 	c.on "error", (err) -> clean err
 	c.on "close", () -> clean new Error "HTTPS socket closed"

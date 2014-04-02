@@ -17,17 +17,23 @@ stats = {
 	nbFailUDPStart : 0
 	nbRequestUDP : 0
 	nbFailUDP : 0
+
 	nbRequestTCPStart : 0
 	nbFailTCPStart : 0
 	nbRequestTCP : 0
 	nbFailTCP : 0
+
+	nbRequestHTTPSStart : 0
+	nbFailHTTPSStart : 0
+	nbRequestHTTPS : 0
+	nbFailHTTPS : 0
 }
 
 ####################
 # PROCESS IS READY #
 ####################
 services = {}
-serverStarted = (service, _) ->
+serverStarted = (service) ->
 	try
 		services[service] = true
 		if services.udp and services.tcp and services.https
@@ -45,7 +51,7 @@ UDPserver = udp.createSocket "udp4"
 UDPserver.on "error", (err) ->
 	console.log "----------\n", util.inspect(err), "\n----------"
 	process.exit()
-UDPserver.on "listening", () -> serverStarted "udp", !_
+UDPserver.on "listening", () -> serverStarted "udp"
 UDPserver.on "close", () ->
 	con "UDPserver closed"
 	process.exit()
@@ -103,7 +109,7 @@ handlerTCP = (c, _) ->
 
 TCPserver = tcp.createServer((c) ->
 	handlerTCP c, ->
-).listen 53, () -> serverStarted "tcp", !_
+).listen 53, () -> serverStarted "tcp"
 TCPserver.on "error", (err) ->
 	console.log "----------\n", util.inspect(err), "\n----------"
 	process.exit()
@@ -116,23 +122,25 @@ TCPserver.on "close", () ->
 ######################
 
 handlerHTTPS = (c, _) ->
+	stats.nbRequestHTTPS++
+	stats.nbRequestHTTPSStart++
 	try
 		[host, received] = libHTTPS.getRequest c, [_]
 		stream = libHTTPS.getHTTPSstream host, _
 		con host
-		con received
-		stream.pipe c
 		stream.write received
-		c.pipe stream
+		c.pipe(stream).pipe(c)
+		c.resume()
 	catch err
 		con err
+		stats.nbFailHTTPS++
+		stats.nbFailHTTPSStart++
+		c.destroy()
+		stream.destroy()
 
 HTTPSserver = tcp.createServer((c) ->
-	con "listeninnnnng"
 	handlerHTTPS c, ->
-).listen 443, () ->
-	con "!!!"
-	serverStarted "https", !_
+).listen 443, () -> serverStarted "https"
 HTTPSserver.on "error", (err) ->
 	console.log "----------\n", util.inspect(err), "\n", err.message, "\n----------"
 	process.exit()
@@ -150,7 +158,8 @@ setInterval () ->
 
 setInterval () ->
 	con(process.pid, "UDP", stats.nbFailUDP+"/"+stats.nbRequestUDP, "UDPStart", stats.nbFailUDPStart+"/"+stats.nbRequestUDPStart,
-		"TCP", stats.nbFailTCP+"/"+stats.nbRequestTCP, "TCPStart", stats.nbFailTCPStart+"/"+stats.nbRequestTCPStart)
+		"TCP", stats.nbFailTCP+"/"+stats.nbRequestTCP, "TCPStart", stats.nbFailTCPStart+"/"+stats.nbRequestTCPStart,
+		"HTTPS", stats.nbFailHTTPS+"/"+stats.nbRequestHTTPS, "HTTPSStart", stats.nbFailHTTPSStart+"/"+stats.nbFailHTTPSStart)
 	stats.nbRequestUDP = 0
 	stats.nbFailUDP = 0
 	stats.nbRequestTCP = 0
