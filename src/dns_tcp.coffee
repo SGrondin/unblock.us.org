@@ -2,8 +2,7 @@ tcp = require "net"
 libDNS = require "./dns"
 
 getGoogleStream = (cb) ->
-	google = tcp.createConnection {port:53, host:"8.8.8.8"}
-	google.on "connect", () ->
+	google = tcp.createConnection {port:53, host:"8.8.8.8"}, () ->
 		cb null, google
 
 
@@ -11,6 +10,7 @@ getRequest = (client, cb) ->
 	received = []
 	lengthExpected = null
 	clean = (err, req) ->
+		clean = ->
 		client.removeAllListeners()
 		cb err, req
 	client.on "error", (err) ->	clean err

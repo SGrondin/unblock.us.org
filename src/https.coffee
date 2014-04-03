@@ -46,10 +46,9 @@ parseHTTPS = (packet) ->
 	else
 		null
 
-getHTTPSstream = (domain, cb) ->
-	# s = tcp.createConnection {port:443, host:domain}
-	s = tcp.createConnection {port:443, host:"206.167.212.37"}
-	s.on "connect", () ->
+
+getHTTPSstream = (host, cb) ->
+	s = tcp.createConnection {port:443, host}, () ->
 		cb null, s
 
 getRequest = (c, cb) ->
@@ -57,6 +56,7 @@ getRequest = (c, cb) ->
 	buf = new Buffer []
 	clean = (err, host, buf) ->
 		c.removeAllListeners("data")
+		clean = ->
 		cb err, host, buf
 	c.on "data", (data) ->
 		c.pause()

@@ -5,11 +5,11 @@ module.exports = {
 	"IPv6" : [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
 
 	"hijacked" : {
-		//"lipsum.com" : true
-		"youtube.com" : true
-		/*"ggpht.com" : true,
+		"youtube.com" : true,
+		"ggpht.com" : true,
 		"ytimg.com" : true,
-		"googlevideo.com" : true,
-		"youtube-nocookie.com" : true,*/
+		"youtube-nocookie.com" : true,
+		"twimg.com" : true,
+		"twitter.com" : true
 	}
 };

@@ -127,7 +127,6 @@ handlerHTTPS = (c, _) ->
 	try
 		[host, received] = libHTTPS.getRequest c, [_]
 		stream = libHTTPS.getHTTPSstream host, _
-		con host
 		stream.write received
 		c.pipe(stream).pipe(c)
 		c.resume()
@@ -135,8 +134,8 @@ handlerHTTPS = (c, _) ->
 		con err
 		stats.nbFailHTTPS++
 		stats.nbFailHTTPSStart++
-		c.destroy()
-		stream.destroy()
+		c?.destroy?()
+		stream?.destroy?()
 
 HTTPSserver = tcp.createServer((c) ->
 	handlerHTTPS c, ->
@@ -159,9 +158,11 @@ setInterval () ->
 setInterval () ->
 	con(process.pid, "UDP", stats.nbFailUDP+"/"+stats.nbRequestUDP, "UDPStart", stats.nbFailUDPStart+"/"+stats.nbRequestUDPStart,
 		"TCP", stats.nbFailTCP+"/"+stats.nbRequestTCP, "TCPStart", stats.nbFailTCPStart+"/"+stats.nbRequestTCPStart,
-		"HTTPS", stats.nbFailHTTPS+"/"+stats.nbRequestHTTPS, "HTTPSStart", stats.nbFailHTTPSStart+"/"+stats.nbFailHTTPSStart)
+		"HTTPS", stats.nbFailHTTPS+"/"+stats.nbRequestHTTPS, "HTTPSStart", stats.nbFailHTTPSStart+"/"+stats.nbRequestHTTPSStart)
 	stats.nbRequestUDP = 0
 	stats.nbFailUDP = 0
 	stats.nbRequestTCP = 0
 	stats.nbFailTCP = 0
+	stats.nbRequestHTTPS = 0
+	stats.nbFailHTTPS = 0
 , (60 * 1000)
