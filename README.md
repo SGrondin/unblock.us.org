@@ -1,18 +1,30 @@
-dns-uncensor
-============
+unblock.us.org
+==============
 
 This is a work in progress.
 
-It works by forwarding all DNS lookups to Google (8.8.8.8 or 8.8.4.4). It supports TCP for long/signed responses.
+It uncensors the web by using the same tools that oppressive governments use to censor it in the first place. Fight fire with fire.
 
-There's no logging/history whatsoever, except for how many requests/second it serves.
+It works by forwarding all DNS lookups to Google (8.8.8.8, 8.8.4.4). That unblocks all sites that were blocked at the DNS level.
 
-All HTTP and HTTPS requests for domains listed in settings.js are tunneled instead, to avoid the IP ban.
+Sites blocked at the IP level are DNS-hijacked and then tunneled through the server, in MITM fashion. SSL data obviously can't be decrypted nor tampered because only the legitimate site owners have the private key to do so. However, it can be passed through to evade an IP ban. Both encrypted and unencrypted data is only proxied, it's never analyzed nor logged.
 
-TODO:
+HTTP traffic is routed using the HTTP Host header. HTTPS traffic is routed using the SSL SNI extension.
+
+It supports TCP for long/signed DNS packets.
+
+There's no logging/history whatsoever, other than traffic stats. No data that could be used to identify the source or content of a request is ever written to the hard drive.
+
+###Limitations:
+
+* IP-banned domains are only unblocked for the web (HTTP/HTTPS). However, DNS-banned domains are accessible using any protocol.
+* HTTPS routing relies on SNI, which is not available on Windows XP and some very old browsers (IE 6, Firefox 1, etc.).
+
+
+###TODO:
 
 * Cleaner restart/reload
-* Support subdomain wildcard
+* Support subdomain wildcards
 
 
 # Install
@@ -41,7 +53,7 @@ server {
 
 Edit ```settings.js``` with the IPv4 and IPv6 addresses of your server and the domains you want to tunnel.
 
-Then start the server.
+Then run it.
 
 #### Run
 ```
@@ -56,3 +68,7 @@ Modifications to ```.coffee``` and ```._coffee``` files require recompilation.
 ```
 
 Only the master process runs as root, the workers use user ```nobody```.
+
+Please reports bug here on Github, using the Issues system.
+
+Pull requests are welcome.-

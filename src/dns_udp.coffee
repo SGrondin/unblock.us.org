@@ -1,30 +1,30 @@
 udp = require "dgram"
-bitconcat = require "bitconcat"
 
 sendUDP = (socket, ip, port, data, cb) ->
 	if not socket?
 		socket = udp.createSocket "udp4"
-		timeoutSend = setTimeout () ->
-			clean new Error "Time exceeded"
-		, 1500
-		clean = (err, data, info) ->
-			clean = ->
+		clean1 = (err, data, info) ->
+			clean1 = ->
 			clearTimeout timeoutSend
 			socket.removeAllListeners()
 			socket.close()
 			cb err, data, info
-		socket.on "error", (err) -> clean err
-		socket.on "message", (data, info) -> clean null, data, info
-		socket.send data, 0, data.length, port, ip, (err) -> if err? then clear err
+		timeoutSend = setTimeout () ->
+			clean1 new Error "Time exceeded"
+		, 3000
+		socket.on "error", (err) -> clean1 err
+		socket.on "close", () -> clean1 new Error "UDP socket closed"
+		socket.on "message", (data, info) -> clean1 null, data, info
+		socket.send data, 0, data.length, port, ip, (err) -> if err? then clean1 err
 	else
-		clean = (err) ->
-			clean = ->
+		clean2 = (err) ->
+			clean2 = ->
 			clearTimeout timeoutSend
 			cb err
 		timeoutSend = setTimeout () ->
-			clean new Error "Send time exceeded"
+			clean2 new Error "Send time exceeded"
 		, 3000
-		socket.send data, 0, data.length, port, ip, (err) -> clean err
+		socket.send data, 0, data.length, port, ip, (err) -> clean2 err
 forwardGoogleUDP = (data, limiterUDP, cb) ->
 	# start = Date.now()
 	nbErrors = 0
@@ -35,7 +35,7 @@ forwardGoogleUDP = (data, limiterUDP, cb) ->
 		cb err, data, info
 	timeoutDown = setTimeout () ->
 		clean new Error "Time exceeded ("+nbErrors+" errors)"
-	, 1500
+	, 3500
 
 	timeoutAlt = setTimeout () ->
 		limiterUDP.submit sendUDP, null, "8.8.4.4", 53, data, (err, resData, resInfo) ->
