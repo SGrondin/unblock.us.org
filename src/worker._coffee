@@ -12,6 +12,7 @@ libDNS = require "./dns"
 libHTTPS = require "./https"
 limiterUDP = new Bottleneck 50, 0
 limiterTCP = new Bottleneck 30, 0
+limiterHTTPS = new Bottleneck 120, 0
 stats = {
 	nbRequestUDPStart : 0
 	nbFailUDPStart : 0
@@ -70,8 +71,10 @@ handlerUDP = (data, info, _) ->
 	catch err
 		stats.nbFailUDP++
 		stats.nbFailUDPStart++
-		libUDP.sendUDP UDPserver, info.address, info.port, libDNS.makeDNS(parsed, libDNS.SERVERFAILURE), _
-		console.log err.stack
+		try
+			libUDP.sendUDP UDPserver, info.address, info.port, libDNS.makeDNS(parsed, libDNS.SERVERFAILURE), _
+		catch e
+		console.log err.message
 
 UDPserver.on "message", (data, info) ->
 	try
@@ -126,12 +129,12 @@ handlerHTTPS = (c, _) ->
 	stats.nbRequestHTTPSStart++
 	try
 		[host, received] = libHTTPS.getRequest c, [_]
-		stream = libHTTPS.getHTTPSstream host, _
+		stream = limiterHTTPS.submit libHTTPS.getHTTPSstream, host, _
 		stream.write received
 		c.pipe(stream).pipe(c)
 		c.resume()
 	catch err
-		con err
+		con err.message
 		stats.nbFailHTTPS++
 		stats.nbFailHTTPSStart++
 		c?.destroy?()
@@ -151,8 +154,8 @@ HTTPSserver.on "close", () ->
 # PRINT DNS STATS #
 ###################
 setInterval () ->
-	if limiterUDP._nbRunning > 40 or limiterTCP._nbRunning > 20
-		con "NBRUNNING: UDP", limiterUDP._nbRunning, "TCP", limiterTCP._nbRunning
+	if limiterUDP._nbRunning > 40 or limiterTCP._nbRunning > 20 or limiterHTTPS._nbRunning > 100
+		con "NBRUNNING: UDP", limiterUDP._nbRunning, "TCP", limiterTCP._nbRunning, "HTTPS", limiterHTTPS._nbRunning
 , 3000
 
 setInterval () ->

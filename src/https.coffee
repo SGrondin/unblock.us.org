@@ -50,6 +50,9 @@ parseHTTPS = (packet) ->
 getHTTPSstream = (host, cb) ->
 	s = tcp.createConnection {port:443, host}, () ->
 		cb null, s
+	s.on "error", (err) -> throw err
+	s.on "close", () -> throw new Error "HTTPS upstream closed"
+	s.on "timeout", () -> throw new Error "HTTPS upstream timeout"
 
 getRequest = (c, cb) ->
 	received = []
