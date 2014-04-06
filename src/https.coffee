@@ -48,11 +48,11 @@ parseHTTPS = (packet) ->
 
 
 getHTTPSstream = (host, cb) ->
-	s = tcp.createConnection {port:443, host}, () ->
+	s = tcp.createConnection {port:443, host}, ->
 		cb null, s
 	s.on "error", (err) -> throw err
-	s.on "close", () -> throw new Error "HTTPS upstream closed"
-	s.on "timeout", () -> throw new Error "HTTPS upstream timeout"
+	s.on "close", -> throw new Error "HTTPS upstream closed"
+	s.on "timeout", -> throw new Error "HTTPS upstream timeout"
 
 getRequest = (c, cb) ->
 	received = []
@@ -70,9 +70,9 @@ getRequest = (c, cb) ->
 			clean null, ssl.host, buf
 		else
 			c.resume()
-	c.on "timeout", () -> clean new Error "HTTPS getRequest timeout"
+	c.on "timeout", -> clean new Error "HTTPS getRequest timeout"
 	c.on "error", (err) -> clean err
-	c.on "close", () -> clean new Error "HTTPS socket closed"
-	c.on "end", () -> clean new Error "HTTPS getRequest socket closed"
+	c.on "close", -> clean new Error "HTTPS socket closed"
+	c.on "end", -> clean new Error "HTTPS getRequest socket closed"
 
 module.exports = {getHTTPSstream, getRequest}

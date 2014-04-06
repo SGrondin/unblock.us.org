@@ -9,11 +9,11 @@ sendUDP = (socket, ip, port, data, cb) ->
 			socket.removeAllListeners()
 			socket.close()
 			cb err, data, info
-		timeoutSend = setTimeout () ->
+		timeoutSend = setTimeout ->
 			clean1 new Error "Time exceeded"
 		, 3000
 		socket.on "error", (err) -> clean1 err
-		socket.on "close", () -> clean1 new Error "UDP socket closed"
+		socket.on "close", -> clean1 new Error "UDP socket closed"
 		socket.on "message", (data, info) -> clean1 null, data, info
 		socket.send data, 0, data.length, port, ip, (err) -> if err? then clean1 err
 	else
@@ -21,7 +21,7 @@ sendUDP = (socket, ip, port, data, cb) ->
 			clean2 = ->
 			clearTimeout timeoutSend
 			cb err
-		timeoutSend = setTimeout () ->
+		timeoutSend = setTimeout ->
 			clean2 new Error "Send time exceeded"
 		, 3000
 		socket.send data, 0, data.length, port, ip, (err) -> clean2 err
@@ -34,14 +34,14 @@ forwardGoogleUDP = (data, limiterUDP, cb) ->
 		clearTimeout timeoutAlt
 		clearTimeout timeoutDown
 		cb err, data, info
-	timeoutDown = setTimeout () ->
+	timeoutDown = setTimeout ->
 		clean new Error "Time exceeded ("+nbErrors+" errors)"
 	, 3500
 
-	timeoutAlt = setTimeout () ->
+	timeoutAlt = setTimeout ->
 		limiterUDP.submit sendUDP, null, "8.8.4.4", 53, data, (err, resData, resInfo) ->
 			if err?
-				con "ALT", err
+				# con "ALT", err
 				nbErrors++
 			# console.log (Date.now()-start), "8.8.4.4"
 			clean err, resData, resInfo
@@ -49,7 +49,7 @@ forwardGoogleUDP = (data, limiterUDP, cb) ->
 
 	limiterUDP.submit sendUDP, null, "8.8.8.8", 53, data, (err, resData, resInfo) ->
 		if err?
-			con "MAIN", err
+			# con "MAIN", err
 			nbErrors++
 		# console.log (Date.now()-start), "8.8.8.8"
 		clean err, resData, resInfo

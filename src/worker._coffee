@@ -2,8 +2,9 @@ udp = require "dgram"
 tcp = require "net"
 Bottleneck = require "bottleneck"
 util = require "util"
-global.con = () -> util.puts Array::concat(new Date().toISOString(), Array::slice.call(arguments, 0)).map((a)->util.inspect a).join " "
-Buffer::toArray = () -> Array::slice.call @, 0
+settings = require "../settings"
+global.con = -> console.log Array::concat(new Date().toISOString(), Array::slice.call(arguments, 0)).map((a)->util.inspect a).join " "
+Buffer::toArray = -> Array::slice.call @, 0
 Buffer::map = (f) -> new Buffer Array::map.call @, f
 Buffer::reduce = (f) -> Array::reduce.call @, f
 libUDP = require "./dns_udp"
@@ -29,6 +30,17 @@ stats = {
 	nbRequestHTTPS : 0
 	nbFailHTTPS : 0
 }
+shutdown = (cause, _) ->
+	shutdown = ->
+	con "worker PID", process.pid, "is shutting down:", cause
+	f1 = TCPserver.close !_
+	f2 = HTTPSserver.close !_
+	UDPserver.close()
+	setTimeout (-> process.exit()), 10000
+	f1 _
+	f2 _
+	process.exit()
+process.on "SIGTERM", -> shutdown "SIGTERM", ->
 
 ####################
 # PROCESS IS READY #
@@ -50,12 +62,10 @@ serverStarted = (service) ->
 #################
 UDPserver = udp.createSocket "udp4"
 UDPserver.on "error", (err) ->
-	console.log "----------\n", util.inspect(err), "\n----------"
-	process.exit()
-UDPserver.on "listening", () -> serverStarted "udp"
-UDPserver.on "close", () ->
-	con "UDPserver closed"
-	process.exit()
+	shutdown "UDPserver error "+util.inspect(err)+" "+err.message, ->
+UDPserver.on "listening", -> serverStarted "udp"
+UDPserver.on "close", ->
+	shutdown "UDPserver closed", ->
 
 handlerUDP = (data, info, _) ->
 	stats.nbRequestUDP++
@@ -112,13 +122,11 @@ handlerTCP = (c, _) ->
 
 TCPserver = tcp.createServer((c) ->
 	handlerTCP c, ->
-).listen 53, () -> serverStarted "tcp"
+).listen 53, -> serverStarted "tcp"
 TCPserver.on "error", (err) ->
-	console.log "----------\n", util.inspect(err), "\n----------"
-	process.exit()
-TCPserver.on "close", () ->
-	con "TCPserver closed"
-	process.exit()
+	shutdown "TCPserver error "+util.inspect(err)+" "+err.message, ->
+TCPserver.on "close", ->
+	shutdown "TCPserver closed", ->
 
 ######################
 # SETUP HTTPS TUNNEL #
@@ -129,6 +137,7 @@ handlerHTTPS = (c, _) ->
 	stats.nbRequestHTTPSStart++
 	try
 		[host, received] = libHTTPS.getRequest c, [_]
+		if not settings.hijacked[host.split(".")[-2..].join(".")]? then throw new Error "Domain not found: "+host
 		stream = limiterHTTPS.submit libHTTPS.getHTTPSstream, host, _
 		stream.write received
 		c.pipe(stream).pipe(c)
@@ -142,23 +151,21 @@ handlerHTTPS = (c, _) ->
 
 HTTPSserver = tcp.createServer((c) ->
 	handlerHTTPS c, ->
-).listen 443, () -> serverStarted "https"
+).listen 443, -> serverStarted "https"
 HTTPSserver.on "error", (err) ->
-	console.log "----------\n", util.inspect(err), "\n", err.message, "\n----------"
-	process.exit()
-HTTPSserver.on "close", () ->
-	con "HTTPSserver closed"
-	process.exit()
+	shutdown "HTTPSserver error "+util.inspect(err)+" "+err.message, ->
+HTTPSserver.on "close", ->
+	shutdown "HTTPSserver closed", ->
 
-###################
-# PRINT DNS STATS #
-###################
-setInterval () ->
+###############
+# PRINT STATS #
+###############
+setInterval ->
 	if limiterUDP._nbRunning > 40 or limiterTCP._nbRunning > 20 or limiterHTTPS._nbRunning > 100
 		con "NBRUNNING: UDP", limiterUDP._nbRunning, "TCP", limiterTCP._nbRunning, "HTTPS", limiterHTTPS._nbRunning
 , 3000
 
-setInterval () ->
+setInterval ->
 	con(process.pid, "UDP", stats.nbFailUDP+"/"+stats.nbRequestUDP, "UDPStart", stats.nbFailUDPStart+"/"+stats.nbRequestUDPStart,
 		"TCP", stats.nbFailTCP+"/"+stats.nbRequestTCP, "TCPStart", stats.nbFailTCPStart+"/"+stats.nbRequestTCPStart,
 		"HTTPS", stats.nbFailHTTPS+"/"+stats.nbRequestHTTPS, "HTTPSStart", stats.nbFailHTTPSStart+"/"+stats.nbRequestHTTPSStart)
