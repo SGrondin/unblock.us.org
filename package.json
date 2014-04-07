@@ -10,6 +10,7 @@
   "devDependencies":{
     "bottleneck": "1.1.x",
     "bitconcat": "0.3.x",
+    "geoip-lite": "1.1.x",
     "coffee-script": "1.7.x",
     "streamline": "0.10.x"
   }

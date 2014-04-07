@@ -1,7 +1,8 @@
 cluster = require "cluster"
 cpus = require("os").cpus().length
+nbWorkers = Math.min 4, cpus
 Bottleneck = require "bottleneck"
-limiter = new Bottleneck 3, 3000
+limiter = new Bottleneck nbWorkers, 3000
 
 
 workers = {}
@@ -28,7 +29,7 @@ createWorker = () ->
 		limiter.submit createWorker, null
 
 if cluster.isMaster
-	for i in [1..(Math.min 4, cpus)]
+	for i in [1..nbWorkers]
 		createWorker()
 else
 	require "./worker"

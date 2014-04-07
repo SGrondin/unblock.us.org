@@ -9,7 +9,10 @@ module.exports = {
 		"ggpht.com" : true,
 		"ytimg.com" : true,
 		"youtube-nocookie.com" : true,
+		"youtu.be" : true,
+
 		"twimg.com" : true,
-		"twitter.com" : true
+		"twitter.com" : true,
+		"t.co" : true
 	}
 };

@@ -3,7 +3,7 @@ unblock.us.org
 
 This is a work in progress.
 
-It uncensors the web by using the same tools that oppressive governments use to censor it in the first place. Fight fire with fire.
+It uncensors the web by using the same tools that oppressive governments use to censor it in the first place.
 
 It works by forwarding all DNS lookups to Google (8.8.8.8, 8.8.4.4). That unblocks all sites that were blocked at the DNS level.
 

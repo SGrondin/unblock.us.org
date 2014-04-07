@@ -1,6 +1,7 @@
 udp = require "dgram"
 tcp = require "net"
 Bottleneck = require "bottleneck"
+geoip = require "geoip-lite"
 util = require "util"
 settings = require "../settings"
 global.con = -> console.log Array::concat(new Date().toISOString(), Array::slice.call(arguments, 0)).map((a)->util.inspect a).join " "
@@ -29,7 +30,18 @@ stats = {
 	nbFailHTTPSStart : 0
 	nbRequestHTTPS : 0
 	nbFailHTTPS : 0
+
+	countriesDNS : {}
+	countriesHTTPS : {}
 }
+countryStats = (ip, type) ->
+	try
+		country = geoip.lookup(ip)?.country
+		if not country? then throw new Error "Can't lookup "+ip
+		hashmap = if type == "DNS" then stats.countriesDNS else stats.countriesHTTPS
+		if hashmap[country]? then hashmap[country]++ else hashmap[country] = 0
+	catch err
+		con err
 shutdown = (cause, _) ->
 	shutdown = ->
 	con "worker PID", process.pid, "is shutting down:", cause
@@ -78,13 +90,14 @@ handlerUDP = (data, info, _) ->
 		else
 			[resData, resInfo] = libUDP.forwardGoogleUDP data, limiterUDP, [_]
 		libUDP.sendUDP UDPserver, info.address, info.port, resData, _
+		countryStats info.address, "DNS"
 	catch err
 		stats.nbFailUDP++
 		stats.nbFailUDPStart++
 		try
 			libUDP.sendUDP UDPserver, info.address, info.port, libDNS.makeDNS(parsed, libDNS.SERVERFAILURE), _
 		catch e
-		console.log err.message
+		con err.message
 
 UDPserver.on "message", (data, info) ->
 	try
@@ -107,12 +120,9 @@ handlerTCP = (c, _) ->
 			c.end answer
 		else
 			google = limiterTCP.submit libTCP.getGoogleStream, _
-			google.on "error", (err) -> throw err
-			google.on "close", (hadError) ->
-				if hadError then throw new Error "GoogleStreamClosed"
-				c.destroy()
 			google.pipe c
 			google.write libDNS.prependLength data
+		countryStats c.remoteAddress, "DNS"
 	catch err
 		con err
 		stats.nbFailTCP++
@@ -142,6 +152,7 @@ handlerHTTPS = (c, _) ->
 		stream.write received
 		c.pipe(stream).pipe(c)
 		c.resume()
+		countryStats c.remoteAddress, "HTTPS"
 	catch err
 		con err.message
 		stats.nbFailHTTPS++
@@ -164,6 +175,11 @@ setInterval ->
 	if limiterUDP._nbRunning > 40 or limiterTCP._nbRunning > 20 or limiterHTTPS._nbRunning > 100
 		con "NBRUNNING: UDP", limiterUDP._nbRunning, "TCP", limiterTCP._nbRunning, "HTTPS", limiterHTTPS._nbRunning
 , 3000
+
+setInterval ->
+	con stats.countriesDNS
+	con stats.countriesHTTPS
+, (60 * 10 * 1000)
 
 setInterval ->
 	con(process.pid, "UDP", stats.nbFailUDP+"/"+stats.nbRequestUDP, "UDPStart", stats.nbFailUDPStart+"/"+stats.nbRequestUDPStart,

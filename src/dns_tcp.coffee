@@ -4,8 +4,11 @@ libDNS = require "./dns"
 getGoogleStream = (cb) ->
 	google = tcp.createConnection {port:53, host:"8.8.8.8"}, ->
 		cb null, google
+	google.on "error", (err) -> google.destroy()
+	google.on "close", -> google.destroy()
+	google.on "timeout", -> google.destroy()
 
-
+# Refactor this at some point
 getRequest = (client, cb) ->
 	received = []
 	lengthExpected = null
