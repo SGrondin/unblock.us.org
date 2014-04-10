@@ -16,11 +16,10 @@ createWorker = () ->
 		worker?.kill()
 	, 3000
 
-	worker.on "message", (message) ->
-		if message.cmd and message.cmd == "online"
-			clearTimeout timeout
-			workers[id] = worker
-			console.log "online "+id
+	worker.on "online", (message) ->
+		clearTimeout timeout
+		workers[id] = worker
+		console.log "online "+id
 
 	console.log "forked "+id
 	worker.on "exit", (code, signal) ->
