@@ -7,10 +7,14 @@
     "url" : "https://github.com/SGrondin/dns-uncensor.git"
   },
   "license": "MIT",
-  "devDependencies":{
+  "dependencies":{
     "bottleneck": "1.1.x",
     "bitconcat": "0.3.x",
     "geoip-lite": "1.1.x",
+    "hiredis": "0.1.x",
+    "redis": "0.10.x"
+    },
+  "devDependencies":{
     "coffee-script": "1.7.x",
     "streamline": "0.10.x"
   }

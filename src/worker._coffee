@@ -1,10 +1,13 @@
 udp = require "dgram"
 tcp = require "net"
+crypto = require "crypto"
 Bottleneck = require "bottleneck"
 geoip = require "geoip-lite"
 util = require "util"
+redis = require "redis"
 settings = require "../settings"
 global.con = -> console.log Array::concat(new Date().toISOString(), Array::slice.call(arguments, 0)).map((a)->util.inspect a).join " "
+md5 = (str) -> crypto.createHash("md5").update(str).digest("hex")
 Buffer::toArray = -> Array::slice.call @, 0
 Buffer::map = (f) -> new Buffer Array::map.call @, f
 Buffer::reduce = (f) -> Array::reduce.call @, f
@@ -12,47 +15,36 @@ libUDP = require "./dns_udp"
 libTCP = require "./dns_tcp"
 libDNS = require "./dns"
 libHTTPS = require "./https"
-limiterUDP = new Bottleneck 50, 0
-limiterTCP = new Bottleneck 30, 0
-limiterHTTPS = new Bottleneck 120, 0
-stats = {
-	nbRequestUDPStart : 0
-	nbFailUDPStart : 0
-	nbRequestUDP : 0
-	nbFailUDP : 0
+limiterUDP = new Bottleneck 150, 0
+limiterTCP = new Bottleneck 150, 0
+limiterHTTPS = new Bottleneck 150, 0
 
-	nbRequestTCPStart : 0
-	nbFailTCPStart : 0
-	nbRequestTCP : 0
-	nbFailTCP : 0
+setInterval ->
+	if limiterUDP._nbRunning > 40 or limiterTCP._nbRunning > 20 or limiterHTTPS._nbRunning > 40
+		con "NBRUNNING: UDP", limiterUDP._nbRunning, "TCP", limiterTCP._nbRunning, "HTTPS", limiterHTTPS._nbRunning
+, 3000
 
-	nbRequestHTTPSStart : 0
-	nbFailHTTPSStart : 0
-	nbRequestHTTPS : 0
-	nbFailHTTPS : 0
-
-	countriesDNS : {}
-	countriesHTTPS : {}
-}
-countryStats = (ip, type) ->
-	try
-		country = geoip.lookup(ip)?.country
-		if not country? then throw new Error "Can't lookup "+ip
-		hashmap = if type == "DNS" then stats.countriesDNS else stats.countriesHTTPS
-		if hashmap[country]? then hashmap[country]++ else hashmap[country] = 0
-	catch err
-		con err
 shutdown = (cause, _) ->
 	shutdown = ->
 	con "worker PID", process.pid, "is shutting down:", cause
 	f1 = TCPserver.close !_
 	f2 = HTTPSserver.close !_
 	UDPserver.close()
-	setTimeout (-> process.exit()), 10000
+	setTimeout process.exit, 10000
 	f1 _
 	f2 _
 	process.exit()
 process.on "SIGTERM", -> shutdown "SIGTERM", ->
+
+stats = (ip, type, _) ->
+	try
+		country = geoip.lookup(ip)?.country
+		if not country? then country = "ZZ"
+		redisClient.hincrby "countries."+type, country, 1, _
+		redisClient.sadd "ip."+type+".countries", country
+		redisClient.sadd "ip."+type+"."+country, md5("thisisgonnaneedtobefixed"+ip), _
+	catch err
+		con err
 
 ####################
 # PROCESS IS READY #
@@ -63,11 +55,19 @@ serverStarted = (service) ->
 		services[service] = true
 		if services.udp and services.tcp and services.https
 			process.setuid "nobody"
-			console.log "Server ready", process.pid
+			con "Server ready", process.pid
 			process.send {cmd:"online"}
 	catch err
 		con err
 		con err.message
+
+###############
+# SETUP REDIS #
+###############
+redisClient = redis.createClient()
+redisClient.on "error", (err) ->
+	shutdown "Redis client error: "+err, ->
+redisClient.select settings.redisDB, _
 
 #################
 # SETUP DNS UDP #
@@ -80,8 +80,8 @@ UDPserver.on "close", ->
 	shutdown "UDPserver closed", ->
 
 handlerUDP = (data, info, _) ->
-	stats.nbRequestUDP++
-	stats.nbRequestUDPStart++
+	redisClient.incr "udp", _
+	redisClient.incr "udp.start", _
 	try
 		parsed = libDNS.parseDNS data
 		answer = libDNS.getAnswer parsed
@@ -90,10 +90,10 @@ handlerUDP = (data, info, _) ->
 		else
 			[resData, resInfo] = libUDP.forwardGoogleUDP data, limiterUDP, [_]
 		libUDP.sendUDP UDPserver, info.address, info.port, resData, _
-		countryStats info.address, "DNS"
+		stats info.address, "dns", ->
 	catch err
-		stats.nbFailUDP++
-		stats.nbFailUDPStart++
+		redisClient.incr "udp.fail", _
+		redisClient.incr "udp.fail.start", _
 		try
 			libUDP.sendUDP UDPserver, info.address, info.port, libDNS.makeDNS(parsed, libDNS.SERVERFAILURE), _
 		catch e
@@ -110,8 +110,8 @@ UDPserver.bind 53
 # SETUP DNS TCP #
 #################
 handlerTCP = (c, _) ->
-	stats.nbRequestTCP++
-	stats.nbRequestTCPStart++
+	redisClient.incr "tcp", _
+	redisClient.incr "tcp.start", _
 	try
 		data = libTCP.getRequest c, _
 		parsed = libDNS.parseDNS data
@@ -122,11 +122,11 @@ handlerTCP = (c, _) ->
 			google = limiterTCP.submit libTCP.getGoogleStream, _
 			google.pipe c
 			google.write libDNS.prependLength data
-		countryStats c.remoteAddress, "DNS"
+		stats c.remoteAddress, "dns", ->
 	catch err
 		con err
-		stats.nbFailTCP++
-		stats.nbFailTCPStart++
+		redisClient.incr "tcp.fai", _
+		redisClient.incr "tcp.fail.start", _
 		c.destroy()
 
 
@@ -143,8 +143,8 @@ TCPserver.on "close", ->
 ######################
 
 handlerHTTPS = (c, _) ->
-	stats.nbRequestHTTPS++
-	stats.nbRequestHTTPSStart++
+	redisClient.incr "https", _
+	redisClient.incr "https.start", _
 	try
 		[host, received] = libHTTPS.getRequest c, [_]
 		if not settings.hijacked[host.split(".")[-2..].join(".")]? then throw new Error "Domain not found: "+host
@@ -152,11 +152,11 @@ handlerHTTPS = (c, _) ->
 		stream.write received
 		c.pipe(stream).pipe(c)
 		c.resume()
-		countryStats c.remoteAddress, "HTTPS"
+		stats c.remoteAddress, "https", ->
 	catch err
 		con err.message
-		stats.nbFailHTTPS++
-		stats.nbFailHTTPSStart++
+		redisClient.incr "https.fail", _
+		redisClient.incr "https.fail.start", _
 		c?.destroy?()
 		stream?.destroy?()
 
@@ -167,28 +167,3 @@ HTTPSserver.on "error", (err) ->
 	shutdown "HTTPSserver error "+util.inspect(err)+" "+err.message, ->
 HTTPSserver.on "close", ->
 	shutdown "HTTPSserver closed", ->
-
-###############
-# PRINT STATS #
-###############
-setInterval ->
-	if limiterUDP._nbRunning > 40 or limiterTCP._nbRunning > 20 or limiterHTTPS._nbRunning > 100
-		con "NBRUNNING: UDP", limiterUDP._nbRunning, "TCP", limiterTCP._nbRunning, "HTTPS", limiterHTTPS._nbRunning
-, 3000
-
-setInterval ->
-	con stats.countriesDNS
-	con stats.countriesHTTPS
-, (60 * 10 * 1000)
-
-setInterval ->
-	con(process.pid, "UDP", stats.nbFailUDP+"/"+stats.nbRequestUDP, "UDPStart", stats.nbFailUDPStart+"/"+stats.nbRequestUDPStart,
-		"TCP", stats.nbFailTCP+"/"+stats.nbRequestTCP, "TCPStart", stats.nbFailTCPStart+"/"+stats.nbRequestTCPStart,
-		"HTTPS", stats.nbFailHTTPS+"/"+stats.nbRequestHTTPS, "HTTPSStart", stats.nbFailHTTPSStart+"/"+stats.nbRequestHTTPSStart)
-	stats.nbRequestUDP = 0
-	stats.nbFailUDP = 0
-	stats.nbRequestTCP = 0
-	stats.nbFailTCP = 0
-	stats.nbRequestHTTPS = 0
-	stats.nbFailHTTPS = 0
-, (60 * 1000)

@@ -1,7 +1,6 @@
-unblock.us.org
+[unblock.us.org](http://unblock.us.org)
 ==============
 
-This is a work in progress.
 
 It uncensors the web by using the same tools that oppressive governments use to censor it in the first place.
 
@@ -34,6 +33,8 @@ Create the user ```nobody``` with minimal permissions.
 Compile and install [Node](https://github.com/joyent/node) 0.10.x.
 
 Compile and install [nginx](http://nginx.org/en/download.html) 1.4.x with ```./configure --with-http_ssl_module --with-ipv6```
+
+Install Redis 2.8.x, ```sudo apt-get install redis-server```. Edit redis.conf, ```daemonize``` must be set to ```yes```, port to ```6379``` and all ```save``` lines should be commented out.
 
 Create the following ```server``` block inside of the main ```http``` block in ```nginx.conf```:
 ```
