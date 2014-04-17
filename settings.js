@@ -6,16 +6,16 @@ module.exports = {
 	"IPv6" : [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
 
 	"hijacked" : {
-		"youtube.com" : true,
-		"ggpht.com" : true,
-		"ytimg.com" : true,
-		"youtube-nocookie.com" : true,
-		"youtu.be" : true,
+		"youtube.com" : "youtube.com",
+		"ggpht.com" : "ggpht.com",
+		"ytimg.com" : "ggpht.com",
+		"youtube-nocookie.com" : "youtube-nocookie.com",
+		"youtu.be" : "youtu.be",
 
-		"twimg.com" : true,
-		"twitter.com" : true,
-		"t.co" : true,
+		"twimg.com" : "twimg.com",
+		"twitter.com" : "twimg.com",
+		"t.co" : "t.co",
 
-		"ac.il" : true
+		"ac.il" : "ac.il"
 	}
 };

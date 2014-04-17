@@ -122,9 +122,10 @@ makeDNS = (parsed, redirect, isTCP) ->
 		new Buffer ret
 
 getAnswer = (parsed, isTCP) ->
-	domain = parsed.QUESTION.NAME[-2..].join "." # Fails on .co.uk, will fix when the need arises
+	if not (redirected_types[parsed.QUESTION.TYPE]? and parsed.QUESTION.CLASS == "IN") then return null
 
-	if settings.hijacked[domain]? and redirected_types[parsed.QUESTION.TYPE]? and parsed.QUESTION.CLASS == "IN"
+	domain = settings.hijacked[parsed.QUESTION.NAME[-2..].join(".")] or settings.hijacked[parsed.QUESTION.NAME[-3..].join(".")] or null
+	if domain?
 		makeDNS parsed, redirection[parsed.QUESTION.TYPE], isTCP
 	else
 		null

@@ -22,8 +22,8 @@ There's no logging/history whatsoever, other than traffic stats. No data that co
 
 ###TODO:
 
-* Cleaner restart/reload
-* Support subdomain wildcards
+* Refresh settings without restarting the workers
+* [Host tunneling](http://unblock.us.org/?p=61)
 
 
 # Install
