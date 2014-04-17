@@ -10,22 +10,31 @@ limiter = new Bottleneck nbWorkers, 3000
 # STATS #
 #########
 
-redisClient = redis.createClient()
-redisClient.select settings.redisDB
-statsStart = ["https.fail.start", "https.start",
-	"udp.fail.start", "udp.start",
-	"tcp.fail.start", "tcp.start"]
-stats = ["https.fail", "https",
-	"udp.fail", "udp",
-	"tcp.fail", "tcp"]
-resetKeys = (keys, _) ->
-	keys.forEach_ _, -1, (_, k) ->
-		redisClient.set k, 0
-resetKeys statsStart.concat(stats), ->
+if cluster.isMaster
+	redisClient = redis.createClient()
+	redisClient.select settings.redisDB
+	statsStart = ["https.fail.start", "https.start",
+		"udp.fail.start", "udp.start",
+		"tcp.fail.start", "tcp.start"]
+	stats = ["https.fail", "https",
+		"udp.fail", "udp",
+		"tcp.fail", "tcp"]
+	statsLast = ["https.fail.last", "https.last",
+		"udp.fail.last", "udp.last",
+		"tcp.fail.last", "tcp.last"]
 
-setInterval ->
-	resetKeys stats, ->
-, (60 * 1000)
+	resetKeys = (keys, _) ->
+		keys.forEach_ _, -1, (_, k) ->
+			redisClient.set k, 0
+	resetKeys statsStart.concat(stats, statsLast), ->
+
+	interval = (_) ->
+		(redisClient.mget stats, _).forEach_ _, -1, (_, s, i) ->
+			redisClient.mset stats[i]+".last", s, stats[i], 0, _
+
+	setInterval ->
+		interval ->
+	, (60 * 1000)
 
 
 ###########

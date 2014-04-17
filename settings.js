@@ -14,6 +14,8 @@ module.exports = {
 
 		"twimg.com" : true,
 		"twitter.com" : true,
-		"t.co" : true
+		"t.co" : true,
+
+		"ac.il" : true
 	}
 };
