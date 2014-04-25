@@ -74,11 +74,10 @@ parseDNS = (packet) ->
 		pos = 12
 		len = packet[pos]
 		name = []
-		while len != 0 and nb < 15
-			name.push packet[(pos+1)..(pos+len)].toArray().map((a) -> String.fromCharCode a).reduce((a,b) -> a+b).toLowerCase()
+		while len != 0 and nb++ < 15
+			name.push packet[(pos+1)..(pos+len)].toArray().map((a) -> String.fromCharCode a).join("").toLowerCase()
 			pos += len+1
 			len = packet[pos]
-			nb++
 		res.QUESTION = {
 			NAME	: name
 			TYPE	: getType packet[(pos+1)..(pos+2)]
@@ -87,7 +86,7 @@ parseDNS = (packet) ->
 			# classraw: packet[(pos+3)..(pos+4)]
 			raw		: packet[12..(pos+4)]
 		}
-		if not (res.QUESTION.NAME.length > 0 and res.QUESTION.CLASS.length == 2) then throw new Error "Invalid QUESTION.NAME"
+		if not (res.QUESTION.NAME.length > 0 and res.QUESTION.CLASS.length == 2) then throw new Error "Invalid QUESTION.NAME\n"+packet.toArray()
 		res
 	catch err
 		con err
@@ -121,13 +120,17 @@ makeDNS = (parsed, redirect, isTCP) ->
 	else
 		new Buffer ret
 
+hijackedDomain = (name) -> # Returns the hijacked name or null
+	if name[-1..][0]? and name[-1..][0] == "tunnel" then name.pop()
+	settings.hijacked[name[-2..].join(".")] or settings.hijacked[name[-3..].join(".")] or null
+
 getAnswer = (parsed, isTCP) ->
 	if not (redirected_types[parsed.QUESTION.TYPE]? and parsed.QUESTION.CLASS == "IN") then return null
 
-	domain = settings.hijacked[parsed.QUESTION.NAME[-2..].join(".")] or settings.hijacked[parsed.QUESTION.NAME[-3..].join(".")] or null
+	domain = hijackedDomain parsed.QUESTION.NAME[..]
 	if domain?
 		makeDNS parsed, redirection[parsed.QUESTION.TYPE], isTCP
 	else
 		null
 
-module.exports = {parse2Bytes, parse3Bytes, make2Bytes, prependLength, parseDNS, makeDNS, getAnswer, SERVERFAILURE, NAMEERROR}
+module.exports = {parse2Bytes, parse3Bytes, make2Bytes, prependLength, parseDNS, makeDNS, hijackedDomain, getAnswer, SERVERFAILURE, NAMEERROR}

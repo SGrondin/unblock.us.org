@@ -1,5 +1,7 @@
 udp = require "dgram"
 tcp = require "net"
+http = require "http"
+rawCreateServer = require "http-raw"
 crypto = require "crypto"
 Bottleneck = require "bottleneck"
 geoip = require "geoip-lite"
@@ -15,12 +17,14 @@ libUDP = require "./dns_udp"
 libTCP = require "./dns_tcp"
 libDNS = require "./dns"
 libHTTPS = require "./https"
-limiterUDP = new Bottleneck 150, 0
+libHTTP = require "./http"
+limiterUDP = new Bottleneck 250, 0
 limiterTCP = new Bottleneck 150, 0
 limiterHTTPS = new Bottleneck 150, 0
+limiterHTTP = new Bottleneck 250, 0
 
 setInterval ->
-	if limiterUDP._nbRunning > 40 or limiterTCP._nbRunning > 20 or limiterHTTPS._nbRunning > 40
+	if limiterUDP._nbRunning > 130 or limiterTCP._nbRunning > 20 or limiterHTTPS._nbRunning > 75 or limiterHTTP._nbRunning > 75
 		con "NBRUNNING: UDP", limiterUDP._nbRunning, "TCP", limiterTCP._nbRunning, "HTTPS", limiterHTTPS._nbRunning
 , 3000
 
@@ -39,7 +43,9 @@ process.on "SIGTERM", -> shutdown "SIGTERM", ->
 stats = (ip, type, _) ->
 	try
 		country = geoip.lookup(ip)?.country
-		if not country? then country = "ZZ"
+		if not country?
+			country = "ZZ"
+			con "ZZ: "+ip
 		redisClient.hincrby "countries."+type, country, 1, _
 		redisClient.sadd "ip."+type+".countries", country
 		redisClient.sadd "ip."+type+"."+country, md5("thisisgonnaneedtobefixed"+ip), _
@@ -53,7 +59,7 @@ services = {}
 serverStarted = (service) ->
 	try
 		services[service] = true
-		if services.udp and services.tcp and services.https
+		if services.udp and services.tcp and services.https and services.http
 			process.setuid "nobody"
 			con "Server ready", process.pid
 			process.send {cmd:"online"}
@@ -80,9 +86,9 @@ UDPserver.on "close", ->
 	shutdown "UDPserver closed", ->
 
 handlerUDP = (data, info, _) ->
-	redisClient.incr "udp", _
-	redisClient.incr "udp.start", _
 	try
+		redisClient.incr "udp"
+		redisClient.incr "udp.start"
 		parsed = libDNS.parseDNS data
 		answer = libDNS.getAnswer parsed
 		if answer?
@@ -97,7 +103,7 @@ handlerUDP = (data, info, _) ->
 		try
 			libUDP.sendUDP UDPserver, info.address, info.port, libDNS.makeDNS(parsed, libDNS.SERVERFAILURE), _
 		catch e
-		con err.message
+		con err.stack
 
 UDPserver.on "message", (data, info) ->
 	try
@@ -110,9 +116,9 @@ UDPserver.bind 53
 # SETUP DNS TCP #
 #################
 handlerTCP = (c, _) ->
-	redisClient.incr "tcp", _
-	redisClient.incr "tcp.start", _
 	try
+		redisClient.incr "tcp"
+		redisClient.incr "tcp.start"
 		data = libTCP.getRequest c, _
 		parsed = libDNS.parseDNS data
 		answer = libDNS.getAnswer parsed, true
@@ -143,27 +149,51 @@ TCPserver.on "close", ->
 ######################
 
 handlerHTTPS = (c, _) ->
-	redisClient.incr "https", _
-	redisClient.incr "https.start", _
-	try
-		[host, received] = libHTTPS.getRequest c, [_]
-		if not settings.hijacked[host.split(".")[-2..].join(".")]? then throw new Error "Domain not found: "+host
-		stream = limiterHTTPS.submit libHTTPS.getHTTPSstream, host, _
-		stream.write received
-		c.pipe(stream).pipe(c)
-		c.resume()
-		stats c.remoteAddress, "https", ->
-	catch err
-		con err.message
-		redisClient.incr "https.fail", _
-		redisClient.incr "https.fail.start", _
-		c?.destroy?()
-		stream?.destroy?()
+	# try
+	con "HTTPS!!"
+	redisClient.incr "https"
+	redisClient.incr "https.start"
+	[host, received] = libHTTPS.getRequest c, [_]
+	if not libDNS.hijackedDomain(host.split("."))? then throw new Error "HTTPS Domain not found: "+host
+	con host+"!!"
+	stream = limiterHTTPS.submit libHTTPS.getHTTPSstream, host, _
+	stream.write received
+	c.pipe(stream).pipe(c)
+	c.resume()
+	stats c.remoteAddress, "https", ->
+	# catch err
+	# 	con err.message
+	# 	redisClient.incr "https.fail", _
+	# 	redisClient.incr "https.fail.start", _
+	# 	c?.destroy?()
+	# 	stream?.destroy?()
 
 HTTPSserver = tcp.createServer((c) ->
 	handlerHTTPS c, ->
-).listen 443, -> serverStarted "https"
+).listen settings.httpsSocket, -> serverStarted "https"
 HTTPSserver.on "error", (err) ->
 	shutdown "HTTPSserver error "+util.inspect(err)+" "+err.message, ->
 HTTPSserver.on "close", ->
 	shutdown "HTTPSserver closed", ->
+
+#####################
+# SETUP HTTP TUNNEL #
+#####################
+
+handlerHTTP = (req, res, _) ->
+	# try
+	con "HTTP!"
+	if not libDNS.hijackedDomain(req.headers.host.split("."))? then throw new Error "HTTP domain not found"+req.headers.host
+	con req.headers.host+"!"
+	stream = libHTTP.getHTTPstream req.headers.host, _
+	sreq = req.createRawStream()
+	sres = res.createRawStream()
+	sreq.pipe(stream).pipe(sres)
+	# catch err
+	# 	con err
+	# 	s?.destroy?()
+	# 	stream?.destroy?()
+
+HTTPserver = rawCreateServer((req, res) ->
+	handlerHTTP req, res, ->
+).listen 15000, "::", null, -> serverStarted "http"

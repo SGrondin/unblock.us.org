@@ -70,9 +70,14 @@ getRequest = (c, cb) ->
 			clean null, ssl.host, buf
 		else
 			c.resume()
-	c.on "timeout", -> clean new Error "HTTPS getRequest timeout"
-	c.on "error", (err) -> clean err
-	c.on "close", -> clean new Error "HTTPS socket closed"
-	c.on "end", -> clean new Error "HTTPS getRequest socket closed"
+	c.on "timeout", ->
+		c.destroy()
+		clean new Error "HTTPS getRequest timeout"
+	c.on "error", (err) ->
+		c.destroy()
+		clean err
+	c.on "close", ->
+		c.destroy()
+		clean new Error "HTTPS socket closed"
 
 module.exports = {getHTTPSstream, getRequest}
