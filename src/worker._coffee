@@ -64,7 +64,7 @@ serverStarted = (service) ->
 ###############
 # SETUP REDIS #
 ###############
-redisClient = redis.createClient()
+global.redisClient = redis.createClient()
 redisClient.on "error", (err) ->
 	shutdown "Redis client error: "+err, ->
 redisClient.select settings.redisDB, _
