@@ -134,7 +134,7 @@ TCPserver = tcp.createServer((c) ->
 	handlerTCP c, ->
 ).listen 53, -> serverStarted "tcp"
 TCPserver.on "error", (err) ->
-	shutdown "TCPserver error "+util.inspect(err)+" "+err.message, ->
+	con "TCPserver error "+util.inspect(err)+" "+err.message
 TCPserver.on "close", ->
 	shutdown "TCPserver closed", ->
 
@@ -164,6 +164,6 @@ HTTPSserver = tcp.createServer((c) ->
 	handlerHTTPS c, ->
 ).listen 443, -> serverStarted "https"
 HTTPSserver.on "error", (err) ->
-	shutdown "HTTPSserver error "+util.inspect(err)+" "+err.message, ->
+	con "HTTPSserver error "+util.inspect(err)+" "+err.message
 HTTPSserver.on "close", ->
 	shutdown "HTTPSserver closed", ->
