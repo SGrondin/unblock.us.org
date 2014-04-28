@@ -116,7 +116,7 @@ makeDNS = (parsed, redirect, isTCP) ->
 		parsed.QUESTION.raw.toArray()	# QUESTION
 		redirect.ANSWER
 	)
-	if isTCP?
+	if isTCP
 		new Buffer make2Bytes(ret.length).concat ret
 	else
 		new Buffer ret

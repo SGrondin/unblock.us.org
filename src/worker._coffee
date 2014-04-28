@@ -74,6 +74,7 @@ redisClient.select settings.redisDB, _
 #################
 UDPserver = udp.createSocket "udp4"
 UDPserver.on "error", (err) ->
+	console.log err.stack
 	shutdown "UDPserver error "+util.inspect(err)+" "+err.message, ->
 UDPserver.on "listening", -> serverStarted "udp"
 UDPserver.on "close", ->
@@ -84,7 +85,7 @@ handlerUDP = (data, info, _) ->
 	redisClient.incr "udp.start", _
 	try
 		parsed = libDNS.parseDNS data
-		answer = libDNS.getAnswer parsed
+		answer = libDNS.getAnswer parsed, false
 		if answer?
 			resData = answer
 		else
@@ -95,9 +96,9 @@ handlerUDP = (data, info, _) ->
 		redisClient.incr "udp.fail", _
 		redisClient.incr "udp.fail.start", _
 		try
-			libUDP.sendUDP UDPserver, info.address, info.port, libDNS.makeDNS(parsed, libDNS.SERVERFAILURE), _
+			libUDP.sendUDP UDPserver, info.address, info.port, libDNS.makeDNS(parsed, libDNS.SERVERFAILURE, false), _
 		catch e
-		con err.message
+		console.log err.stack
 
 UDPserver.on "message", (data, info) ->
 	try
@@ -135,6 +136,7 @@ TCPserver = tcp.createServer((c) ->
 ).listen 53, -> serverStarted "tcp"
 TCPserver.on "error", (err) ->
 	con "TCPserver error "+util.inspect(err)+" "+err.message
+	console.log err.stack
 TCPserver.on "close", ->
 	shutdown "TCPserver closed", ->
 
@@ -165,5 +167,6 @@ HTTPSserver = tcp.createServer((c) ->
 ).listen 443, -> serverStarted "https"
 HTTPSserver.on "error", (err) ->
 	con "HTTPSserver error "+util.inspect(err)+" "+err.message
+	console.log err.stack
 HTTPSserver.on "close", ->
 	shutdown "HTTPSserver closed", ->
