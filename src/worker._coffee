@@ -59,7 +59,10 @@ services = {}
 serverStarted = (service) ->
 	try
 		services[service] = true
-		if services.udp and services.tcp and services.https and services.http
+		d = false
+		if not d
+		# if services.udp and services.udp6 and services.tcp and services.tcp6 and services.https and services.https6 and services.http and services.http6
+			d = true
 			process.setuid "nobody"
 			con "Server ready", process.pid
 			process.send {cmd:"online"}
@@ -78,12 +81,6 @@ redisClient.select settings.redisDB, _
 #################
 # SETUP DNS UDP #
 #################
-UDPserver = udp.createSocket "udp4"
-UDPserver.on "error", (err) ->
-	shutdown "UDPserver error "+util.inspect(err)+" "+err.message, ->
-UDPserver.on "listening", -> serverStarted "udp"
-UDPserver.on "close", ->
-	shutdown "UDPserver closed", ->
 
 handlerUDP = (data, info, _) ->
 	try
@@ -105,12 +102,18 @@ handlerUDP = (data, info, _) ->
 		catch e
 		con err.stack
 
+UDPserver = udp.createSocket "udp4"
+UDPserver.on "error", (err) ->
+	shutdown "UDPserver error "+util.inspect(err)+" "+err.message, ->
+UDPserver.on "listening", -> serverStarted "udp"
+UDPserver.on "close", ->
+	shutdown "UDPserver closed", ->
 UDPserver.on "message", (data, info) ->
 	try
 		handlerUDP data, info, (err) -> if err? then throw err
 	catch err
 		con err
-UDPserver.bind 53
+UDPserver.bind 53, "::"
 
 #################
 # SETUP DNS TCP #
@@ -149,24 +152,24 @@ TCPserver.on "close", ->
 ######################
 
 handlerHTTPS = (c, _) ->
-	# try
-	con "HTTPS!!"
-	redisClient.incr "https"
-	redisClient.incr "https.start"
-	[host, received] = libHTTPS.getRequest c, [_]
-	if not libDNS.hijackedDomain(host.split("."))? then throw new Error "HTTPS Domain not found: "+host
-	con host+"!!"
-	stream = limiterHTTPS.submit libHTTPS.getHTTPSstream, host, _
-	stream.write received
-	c.pipe(stream).pipe(c)
-	c.resume()
-	stats c.remoteAddress, "https", ->
-	# catch err
-	# 	con err.message
-	# 	redisClient.incr "https.fail", _
-	# 	redisClient.incr "https.fail.start", _
-	# 	c?.destroy?()
-	# 	stream?.destroy?()
+	try
+		con "HTTPS!!"
+		redisClient.incr "https"
+		redisClient.incr "https.start"
+		[host, received] = libHTTPS.getRequest c, [_]
+		if not libDNS.hijackedDomain(host.split("."))? then throw new Error "HTTPS Domain not found: "+host
+		con host+"!!"
+		stream = limiterHTTPS.submit libHTTPS.getHTTPSstream, host, _
+		stream.write received
+		c.pipe(stream).pipe(c)
+		c.resume()
+		stats c.remoteAddress, "https", ->
+	catch err
+		con err.message
+		redisClient.incr "https.fail", _
+		redisClient.incr "https.fail.start", _
+		c?.destroy?()
+		stream?.destroy?()
 
 HTTPSserver = tcp.createServer((c) ->
 	handlerHTTPS c, ->
@@ -181,19 +184,30 @@ HTTPSserver.on "close", ->
 #####################
 
 handlerHTTP = (req, res, _) ->
-	# try
-	con "HTTP!"
-	if not libDNS.hijackedDomain(req.headers.host.split("."))? then throw new Error "HTTP domain not found"+req.headers.host
-	con req.headers.host+"!"
-	stream = libHTTP.getHTTPstream req.headers.host, _
-	sreq = req.createRawStream()
-	sres = res.createRawStream()
-	sreq.pipe(stream).pipe(sres)
-	# catch err
-	# 	con err
-	# 	s?.destroy?()
-	# 	stream?.destroy?()
+	try
+		con "HTTP! "+req.headers.host
+		if not libDNS.hijackedDomain(req.headers.host.split("."))? then throw new Error "HTTP domain not found"+req.headers.host
+		stream = libHTTP.getHTTPstream req.headers.host, _
+		sreq = req.createRawStream()
+		sres = res.createRawStream()
+		sreq.pipe(stream).pipe(sres)
+	catch err
+		con err
+		s?.destroy?()
+		stream?.destroy?()
 
 HTTPserver = rawCreateServer((req, res) ->
 	handlerHTTP req, res, ->
-).listen 15000, "::", null, -> serverStarted "http"
+).listen settings.httpPort, (if settings.httpLocalOnly then "127.0.0.1" else "0.0.0.0"), null, -> serverStarted "http"
+HTTPserver.on "error", (err) ->
+	shutdown "HTTPserver error "+util.inspect(err)+" "+err.message, ->
+HTTPserver.on "close", ->
+	shutdown "HTTPserver closed", ->
+
+HTTPserver6 = rawCreateServer((req, res) ->
+	handlerHTTP req, res, ->
+).listen settings.httpPort, (if settings.httpLocalOnly then "::1" else "::"), null, -> serverStarted "http6"
+HTTPserver6.on "error", (err) ->
+	shutdown "HTTPserver6 error "+util.inspect(err)+" "+err.message, ->
+HTTPserver6.on "close", ->
+	shutdown "HTTPserver6 closed", ->
