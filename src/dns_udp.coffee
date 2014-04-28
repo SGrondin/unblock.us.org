@@ -15,20 +15,16 @@ sendUDP = (socket, ip, port, data, cb) ->
 		socket.on "error", (err) -> clean1 err
 		socket.on "close", -> clean1 new Error "UDP socket closed"
 		socket.on "message", (data, info) -> clean1 null, data, info
-		socket.send data, 0, data.length, port, ip, (err) -> if err? then clean1 err
+		socket.send data, 0, data.length, port, ip, (err) -> clean1 err
 	else
 		clean2 = (err) ->
 			clean2 = ->
 			clearTimeout timeoutSend
 			cb err
-		t1 = Date.now()
 		timeoutSend = setTimeout ->
-			redisClient.rpush "udp.diag.timeout", (Date.now() - t1)
 			clean2 new Error "Send time exceeded"
 		, 3000
-		t2 = Date.now()
 		socket.send data, 0, data.length, port, ip, (err) ->
-			redisClient.rpush "udp.diag.callback", (Date.now() - t2)
 			clean2 err
 
 forwardGoogleUDP = (data, limiterUDP, cb) ->
