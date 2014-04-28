@@ -9,13 +9,19 @@ sendUDP = (socket, ip, port, data, cb) ->
 			clearTimeout timeoutSend
 			socket.close()
 			cb err, data, info
+		t1 = Date.now()
 		timeoutSend = setTimeout ->
+			redisClient.rpush "udp.timeout", (Date.now() - t1)
 			clean1 new Error "Time exceeded"
-		, 4000
+		, 3000
 		socket.on "error", (err) -> clean1 err
 		socket.on "close", -> clean1 new Error "UDP send socket closed"
-		socket.on "message", (data, info) -> clean1 null, data, info
-		socket.send data, 0, data.length, port, ip, (err) -> if err? then clean1 err
+		socket.on "message", (data, info) ->
+			redisClient.rpush "udp.message", (Date.now() - t1)
+			clean1 null, data, info
+		socket.send data, 0, data.length, port, ip, (err) -> if err?
+			redisClient.rpush "udp.callback", (Date.now() - t1)
+			clean1 err
 	else
 		clean2 = (err) ->
 			clean2 = ->
