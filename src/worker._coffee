@@ -15,7 +15,7 @@ libUDP = require "./dns_udp"
 libTCP = require "./dns_tcp"
 libDNS = require "./dns"
 libHTTPS = require "./https"
-limiterUDP = new Bottleneck 150, 0
+limiterUDP = new Bottleneck 250, 0
 limiterTCP = new Bottleneck 150, 0
 limiterHTTPS = new Bottleneck 150, 0
 

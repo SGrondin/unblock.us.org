@@ -23,10 +23,10 @@ if cluster.isMaster
 		"udp.fail.last", "udp.last",
 		"tcp.fail.last", "tcp.last"]
 
-	resetKeys = (keys, _) ->
-		keys.forEach_ _, -1, (_, k) ->
-			redisClient.set k, 0
-	resetKeys statsStart.concat(stats, statsLast), ->
+#	resetKeys = (keys, _) ->
+#		keys.forEach_ _, -1, (_, k) ->
+#			redisClient.set k, 0
+#	resetKeys statsStart.concat(stats, statsLast), ->
 
 	interval = (_) ->
 		(redisClient.mget stats, _).forEach_ _, -1, (_, s, i) ->
