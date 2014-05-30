@@ -32,24 +32,23 @@ Create the user ```nobody``` with minimal permissions.
 
 Compile and install [Node](https://github.com/joyent/node) 0.10.x.
 
-Compile and install [nginx](http://nginx.org/en/download.html) 1.4.x with ```./configure --with-http_ssl_module --with-ipv6```
-
 Install Redis 2.8.x, ```sudo apt-get install redis-server```. Edit redis.conf, ```daemonize``` must be set to ```yes```, port to ```6379``` and all ```save``` lines should be commented out.
 
-Create the following ```server``` block inside of the main ```http``` block in ```nginx.conf```:
+Install bind9 ```sudo apt-get install bind9``` and edit your config like so:
 ```
-server {
-    listen [::]:80 default_server;
-    listen 80 default_server;
-    server_name _;
-    access_log off;
-    location / {
-        resolver 8.8.8.8;
-        proxy_pass http://$http_host$request_uri;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-}
+options {
+    directory "/var/cache/bind";
+    dnssec-validation auto;
+
+    auth-nxdomain no;    # conform to RFC1035
+    listen-on port 53530 { 127.0.0.1; };
+    listen-on-v6 port 53530 { ::1; };
+
+    forwarders {8.8.8.8; 8.8.4.4;};
+    forward only;
+};
+
+controls { };
 ```
 
 Edit ```settings.js``` with the IPv4 and IPv6 addresses of your server and the domains you want to tunnel.

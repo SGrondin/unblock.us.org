@@ -89,7 +89,7 @@ handlerUDP = (data, info, _) ->
 		if answer?
 			resData = answer
 		else
-			[resData, resInfo] = libUDP.forwardGoogleUDP data, limiterUDP, [_]
+			[resData, resInfo] = libUDP.forwardUDP data, limiterUDP, [_]
 		libUDP.sendUDP UDPserver, info.address, info.port, resData, _
 		stats info.address, "dns", ->
 	catch err
@@ -98,7 +98,7 @@ handlerUDP = (data, info, _) ->
 		try
 			libUDP.sendUDP UDPserver, info.address, info.port, libDNS.makeDNS(parsed, libDNS.SERVERFAILURE, false), _
 		catch e
-		console.log err.stack
+		console.log err+" "+parsed?.QUESTION?.NAME?.join "."
 
 UDPserver.on "message", (data, info) ->
 	try
