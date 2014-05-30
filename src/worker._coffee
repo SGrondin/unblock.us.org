@@ -73,7 +73,7 @@ serverStarted = (service) ->
 ###############
 # SETUP REDIS #
 ###############
-redisClient = redis.createClient()
+global.redisClient = redis.createClient()
 redisClient.on "error", (err) ->
 	shutdown "Redis client error: "+err, ->
 redisClient.select settings.redisDB, _
@@ -81,26 +81,25 @@ redisClient.select settings.redisDB, _
 #################
 # SETUP DNS UDP #
 #################
-
 handlerUDP = (data, info, _) ->
 	try
 		redisClient.incr "udp"
 		redisClient.incr "udp.start"
 		parsed = libDNS.parseDNS data
-		answer = libDNS.getAnswer parsed
+		answer = libDNS.getAnswer parsed, false
 		if answer?
 			resData = answer
 		else
-			[resData, resInfo] = libUDP.forwardGoogleUDP data, limiterUDP, [_]
+			[resData, resInfo] = libUDP.forwardUDP data, limiterUDP, [_]
 		libUDP.sendUDP UDPserver, info.address, info.port, resData, _
 		stats info.address, "dns", ->
 	catch err
 		redisClient.incr "udp.fail", _
 		redisClient.incr "udp.fail.start", _
 		try
-			libUDP.sendUDP UDPserver, info.address, info.port, libDNS.makeDNS(parsed, libDNS.SERVERFAILURE), _
+			libUDP.sendUDP UDPserver, info.address, info.port, libDNS.makeDNS(parsed, libDNS.SERVERFAILURE, false), _
 		catch e
-		con err.stack
+		console.log err+" "+parsed?.QUESTION?.NAME?.join "."
 
 UDPserver = udp.createSocket "udp4"
 UDPserver.on "error", (err) ->
@@ -143,7 +142,8 @@ TCPserver = tcp.createServer((c) ->
 	handlerTCP c, ->
 ).listen 53, -> serverStarted "tcp"
 TCPserver.on "error", (err) ->
-	shutdown "TCPserver error "+util.inspect(err)+" "+err.message, ->
+	con "TCPserver error "+util.inspect(err)+" "+err.message
+	console.log err.stack
 TCPserver.on "close", ->
 	shutdown "TCPserver closed", ->
 
@@ -175,7 +175,8 @@ HTTPSserver = tcp.createServer((c) ->
 	handlerHTTPS c, ->
 ).listen settings.httpsSocket, -> serverStarted "https"
 HTTPSserver.on "error", (err) ->
-	shutdown "HTTPSserver error "+util.inspect(err)+" "+err.message, ->
+	con "HTTPSserver error "+util.inspect(err)+" "+err.message
+	console.log err.stack
 HTTPSserver.on "close", ->
 	shutdown "HTTPSserver closed", ->
 
