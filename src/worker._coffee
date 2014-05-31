@@ -19,8 +19,8 @@ libDNS = require "./dns"
 libHTTPS = require "./https"
 libHTTP = require "./http"
 limiterUDP = new Bottleneck 250, 0
-limiterTCP = new Bottleneck 150, 0
-limiterHTTPS = new Bottleneck 150, 0
+limiterTCP = new Bottleneck 250, 0
+limiterHTTPS = new Bottleneck 250, 0
 limiterHTTP = new Bottleneck 250, 0
 
 setInterval ->
@@ -45,7 +45,7 @@ stats = (ip, type, _) ->
 		country = geoip.lookup(ip)?.country
 		if not country?
 			country = "ZZ"
-			con "ZZ: "+ip
+			# con "ZZ: "+ip
 		redisClient.hincrby "countries."+type, country, 1, _
 		redisClient.sadd "ip."+type+".countries", country
 		redisClient.sadd "ip."+type+"."+country, md5("thisisgonnaneedtobefixed"+ip), _
@@ -59,10 +59,7 @@ services = {}
 serverStarted = (service) ->
 	try
 		services[service] = true
-		d = false
-		if not d
-		# if services.udp and services.udp6 and services.tcp and services.tcp6 and services.https and services.https6 and services.http and services.http6
-			d = true
+		if services.udp4 and services.udp6 and services.tcp and services.https and services.http
 			process.setuid "nobody"
 			con "Server ready", process.pid
 			process.send {cmd:"online"}
@@ -81,7 +78,7 @@ redisClient.select settings.redisDB, _
 #################
 # SETUP DNS UDP #
 #################
-handlerUDP = (data, info, _) ->
+handlerUDP = (UDPserver, data, info, _) ->
 	try
 		redisClient.incr "udp"
 		redisClient.incr "udp.start"
@@ -92,27 +89,27 @@ handlerUDP = (data, info, _) ->
 		else
 			[resData, resInfo] = libUDP.forwardUDP data, limiterUDP, [_]
 		libUDP.sendUDP UDPserver, info.address, info.port, resData, _
+		# console.log parsed?.QUESTION?.NAME?.join(".")+" OK"
 		stats info.address, "dns", ->
 	catch err
-		redisClient.incr "udp.fail", _
-		redisClient.incr "udp.fail.start", _
+		redisClient.incr "udp.fail"
+		redisClient.incr "udp.fail.start"
 		try
 			libUDP.sendUDP UDPserver, info.address, info.port, libDNS.makeDNS(parsed, libDNS.SERVERFAILURE, false), _
 		catch e
 		console.log err+" "+parsed?.QUESTION?.NAME?.join "."
 
-UDPserver = udp.createSocket "udp4"
-UDPserver.on "error", (err) ->
-	shutdown "UDPserver error "+util.inspect(err)+" "+err.message, ->
-UDPserver.on "listening", -> serverStarted "udp"
-UDPserver.on "close", ->
-	shutdown "UDPserver closed", ->
-UDPserver.on "message", (data, info) ->
-	try
-		handlerUDP data, info, (err) -> if err? then throw err
-	catch err
-		con err
-UDPserver.bind 53, "::"
+[{IPversion:4, listenTo:"0.0.0.0"}, {IPversion:6, listenTo:"::"}].forEach (ip) ->
+	UDPserver = udp.createSocket "udp"+ip.IPversion
+	UDPserver.on "error", (err) -> shutdown "UDPserver(IPv#{ip.IPversion}) error "+util.inspect(err)+" "+err.message, ->
+	UDPserver.on "listening", -> serverStarted "udp"+ip.IPversion
+	UDPserver.on "close", -> shutdown "UDPserver(IPv#{ip.IPversion}) closed", ->
+	UDPserver.on "message", (data, info) ->
+		try
+			handlerUDP UDPserver, data, info, (err) -> if err? then throw err
+		catch err
+			con err
+	UDPserver.bind 53, ip.listenTo
 
 #################
 # SETUP DNS TCP #
@@ -133,19 +130,17 @@ handlerTCP = (c, _) ->
 		stats c.remoteAddress, "dns", ->
 	catch err
 		con err
-		redisClient.incr "tcp.fai", _
-		redisClient.incr "tcp.fail.start", _
+		redisClient.incr "tcp.fail"
+		redisClient.incr "tcp.fail.start"
 		c.destroy()
-
 
 TCPserver = tcp.createServer((c) ->
 	handlerTCP c, ->
-).listen 53, -> serverStarted "tcp"
+).listen 53, "::", -> serverStarted "tcp"
 TCPserver.on "error", (err) ->
 	con "TCPserver error "+util.inspect(err)+" "+err.message
 	console.log err.stack
-TCPserver.on "close", ->
-	shutdown "TCPserver closed", ->
+TCPserver.on "close", -> shutdown "TCPserver closed", ->
 
 ######################
 # SETUP HTTPS TUNNEL #
@@ -153,27 +148,25 @@ TCPserver.on "close", ->
 
 handlerHTTPS = (c, _) ->
 	try
-		con "HTTPS!!"
 		redisClient.incr "https"
 		redisClient.incr "https.start"
 		[host, received] = libHTTPS.getRequest c, [_]
 		if not libDNS.hijackedDomain(host.split("."))? then throw new Error "HTTPS Domain not found: "+host
-		con host+"!!"
 		stream = limiterHTTPS.submit libHTTPS.getHTTPSstream, host, _
 		stream.write received
 		c.pipe(stream).pipe(c)
 		c.resume()
-		stats c.remoteAddress, "https", ->
+		stats c.remoteAddress, "http", ->
 	catch err
 		con err.message
-		redisClient.incr "https.fail", _
-		redisClient.incr "https.fail.start", _
+		redisClient.incr "https.fail"
+		redisClient.incr "https.fail.start"
 		c?.destroy?()
 		stream?.destroy?()
 
 HTTPSserver = tcp.createServer((c) ->
 	handlerHTTPS c, ->
-).listen settings.httpsSocket, -> serverStarted "https"
+).listen settings.httpsPort, "::", -> serverStarted "https"
 HTTPSserver.on "error", (err) ->
 	con "HTTPSserver error "+util.inspect(err)+" "+err.message
 	console.log err.stack
@@ -186,29 +179,24 @@ HTTPSserver.on "close", ->
 
 handlerHTTP = (req, res, _) ->
 	try
-		con "HTTP! "+req.headers.host
+		redisClient.incr "http"
+		redisClient.incr "http.start"
 		if not libDNS.hijackedDomain(req.headers.host.split("."))? then throw new Error "HTTP domain not found"+req.headers.host
 		stream = libHTTP.getHTTPstream req.headers.host, _
 		sreq = req.createRawStream()
 		sres = res.createRawStream()
 		sreq.pipe(stream).pipe(sres)
+		stats req.connection?.address?(), "http", ->
 	catch err
 		con err
+		redisClient.incr "http.fail"
+		redisClient.incr "http.fail.start"
 		s?.destroy?()
 		stream?.destroy?()
 
 HTTPserver = rawCreateServer((req, res) ->
 	handlerHTTP req, res, ->
-).listen settings.httpPort, (if settings.httpLocalOnly then "127.0.0.1" else "0.0.0.0"), null, -> serverStarted "http"
-HTTPserver.on "error", (err) ->
-	shutdown "HTTPserver error "+util.inspect(err)+" "+err.message, ->
+).listen settings.httpPort, "::", null, -> serverStarted "http"
+HTTPserver.on "error", (err) -> "HTTPserver error "+util.inspect(err)+" "+err.message
 HTTPserver.on "close", ->
 	shutdown "HTTPserver closed", ->
-
-HTTPserver6 = rawCreateServer((req, res) ->
-	handlerHTTP req, res, ->
-).listen settings.httpPort, (if settings.httpLocalOnly then "::1" else "::"), null, -> serverStarted "http6"
-HTTPserver6.on "error", (err) ->
-	shutdown "HTTPserver6 error "+util.inspect(err)+" "+err.message, ->
-HTTPserver6.on "close", ->
-	shutdown "HTTPserver6 closed", ->

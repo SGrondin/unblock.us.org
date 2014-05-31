@@ -12,7 +12,7 @@ sendUDP = (socket, ip, port, data, cb) ->
 			cb err, data, info
 		timeoutSend = setTimeout ->
 			clean1 new Error "Time exceeded"
-		, 3000
+		, 4000
 		socket.on "error", (err) -> clean1 err
 		socket.on "close", -> clean1 new Error "UDP send socket closed"
 		socket.on "message", (data, info) ->
@@ -26,7 +26,7 @@ sendUDP = (socket, ip, port, data, cb) ->
 			cb err
 		timeoutSend = setTimeout ->
 			clean2 new Error "Send time exceeded"
-		, 3000
+		, 4000
 		socket.send data, 0, data.length, port, ip, (err) -> clean2 err
 
 forwardUDP = (data, limiterUDP, cb) ->
@@ -37,7 +37,7 @@ forwardUDP = (data, limiterUDP, cb) ->
 		cb err, data, info
 	timeoutDown = setTimeout ->
 		clean new Error "Time exceeded ("+nbErrors+" errors)"
-	, 3500
+	, 4500
 
 	limiterUDP.submit sendUDP, null, settings.forwardDNS, settings.forwardDNSPort, data, (err, resData, resInfo) ->
 		if err?

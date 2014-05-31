@@ -121,7 +121,7 @@ makeDNS = (parsed, redirect, isTCP) ->
 		new Buffer ret
 
 hijackedDomain = (name) -> # Returns the hijacked name or null
-	if name[-1..][0]? and name[-1..][0] == "tunnel" then name.pop()
+	if name[-1..][0]? and name[-1..][0] == "unblock" then name.pop()
 	settings.hijacked[name[-2..].join(".")] or settings.hijacked[name[-3..].join(".")] or null
 
 getAnswer = (parsed, isTCP) ->

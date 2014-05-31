@@ -51,7 +51,7 @@ options {
 controls { };
 ```
 
-Edit ```settings.js``` with the IPv4 and IPv6 addresses of your server and the domains you want to tunnel.
+Fill out ```settings.js```.
 
 Then run it.
 
