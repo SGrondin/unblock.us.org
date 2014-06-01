@@ -1,3 +1,3 @@
 #! /usr/bin/env bash
 
-node lib/master.js &>> logs/out.txt
+node --expose-gc lib/master.js &>> logs/out.txt

@@ -19,19 +19,23 @@ libUDP = require "./dns_udp"
 libTCP = require "./dns_tcp"
 libDNS = require "./dns"
 libHTTPS = require "./https"
-limiterUDP = new Bottleneck 250, 0
-limiterTCP = new Bottleneck 250, 0
-limiterHTTPS = new Bottleneck 250, 0
-limiterHTTP = new Bottleneck 250, 0
+#limiterUDP = new Bottleneck 250, 0
+#limiterTCP = new Bottleneck 250, 0
+#limiterHTTPS = new Bottleneck 250, 0
+#limiterHTTP = new Bottleneck 250, 0
 
 process.on "uncaughtException", (err) ->
 	con "!!! UNCAUGHT !!!"
 	con err
 	console.log err.stack
 
+#setInterval ->
+#	if limiterUDP._nbRunning > 130 or limiterTCP._nbRunning > 20 or limiterHTTPS._nbRunning > 75 or limiterHTTP._nbRunning > 75
+#		con "NBRUNNING: UDP", limiterUDP._nbRunning, "TCP", limiterTCP._nbRunning, "HTTPS", limiterHTTPS._nbRunning
+#, 3000
+
 setInterval ->
-	if limiterUDP._nbRunning > 130 or limiterTCP._nbRunning > 20 or limiterHTTPS._nbRunning > 75 or limiterHTTP._nbRunning > 75
-		con "NBRUNNING: UDP", limiterUDP._nbRunning, "TCP", limiterTCP._nbRunning, "HTTPS", limiterHTTPS._nbRunning
+	global.gc()
 , 3000
 
 shutdown = (cause, _) ->
@@ -94,7 +98,7 @@ handlerUDP = (UDPserver, data, info, _) ->
 		if answer?
 			resData = answer
 		else
-			[resData, resInfo] = libUDP.forwardUDP data, limiterUDP, [_]
+			[resData, resInfo] = libUDP.forwardUDP data, [_]
 		libUDP.sendUDP UDPserver, info.address, info.port, resData, _
 		# console.log parsed?.QUESTION?.NAME?.join(".")+" OK"
 		stats info.address, "dns", ->
@@ -133,7 +137,7 @@ handlerTCP = (c, _) ->
 		if answer?
 			c.end answer
 		else
-			google = limiterTCP.submit libTCP.getGoogleStream, _
+			google = libTCP.getGoogleStream _
 			google.pipe c
 			google.write libDNS.prependLength data
 		stats c.remoteAddress, "dns", ->
@@ -190,7 +194,7 @@ handlerHTTPS = (c, _) ->
 
 		# Check if host tunneling
 
-		stream = limiterHTTPS.submit libHTTPS.getHTTPSstream, host, _
+		stream = libHTTPS.getHTTPSstream host, _
 		stream.write received
 		c.pipe(stream).pipe(c)
 		c.resume()
@@ -220,13 +224,12 @@ HTTPSserver.on "close", ->
 
 handlerHTTP = (req, res, _) ->
 	try
-		redisClient.incr "http"
-		redisClient.incr "http.start"
-		if not req.headers.host?
+		if not req.headers.host? or not libDNS.hijackedDomain(req.headers.host.split(".")).domain?
 			res.writeHead 500
 			res.end()
 			return
-		if not libDNS.hijackedDomain(req.headers.host.split("."))? then throw new Error "HTTP domain not found"+req.headers.host
+		redisClient.incr "http"
+		redisClient.incr "http.start"
 		proxy.web req, res, {target:"http://"+req.headers.host, secure:false}
 		stats req.connection?.address?(), "http", ->
 	catch err

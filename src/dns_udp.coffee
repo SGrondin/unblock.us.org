@@ -29,7 +29,7 @@ sendUDP = (socket, ip, port, data, cb) ->
 		, 4000
 		socket.send data, 0, data.length, port, ip, (err) -> clean2 err
 
-forwardUDP = (data, limiterUDP, cb) ->
+forwardUDP = (data, cb) ->
 	nbErrors = 0
 	clean = (err, data, info) ->
 		clean = ->
@@ -39,7 +39,7 @@ forwardUDP = (data, limiterUDP, cb) ->
 		clean new Error "Time exceeded ("+nbErrors+" errors)"
 	, 4500
 
-	limiterUDP.submit sendUDP, null, settings.forwardDNS, settings.forwardDNSPort, data, (err, resData, resInfo) ->
+	sendUDP null, settings.forwardDNS, settings.forwardDNSPort, data, (err, resData, resInfo) ->
 		if err?
 			nbErrors++
 		clean err, resData, resInfo
