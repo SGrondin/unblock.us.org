@@ -3,8 +3,6 @@ cpus = require("os").cpus().length
 redis = require "redis"
 settings = require "../settings"
 nbWorkers = Math.min 4, cpus
-Bottleneck = require "bottleneck"
-limiter = new Bottleneck nbWorkers, 3000
 
 #########
 # STATS #
@@ -54,7 +52,7 @@ createWorker = ->
 	worker.on "exit", (code, signal) ->
 		worker = null
 		console.log "worker crashed "+id+"\nCode: "+code+"\nSignal: "+signal+"\nRestarting it..."
-		limiter.submit createWorker, null
+		createWorker()
 
 if cluster.isMaster
 	for i in [1..nbWorkers]

@@ -48,11 +48,16 @@ parseHTTPS = (packet) ->
 
 
 getHTTPSstream = (host, cb) ->
-	s = tcp.createConnection {port:443, host}, ->
-		cb null, s
-	s.on "error", (err) -> s.destroy()
-	s.on "close", -> s.destroy()
-	s.on "timeout", -> s.destroy()
+	try
+		s = tcp.createConnection {port:443, host}, ->
+			cb null, s
+		s.on "error", (err) -> s.destroy()
+		s.on "close", -> s.destroy()
+		s.on "timeout", -> s.destroy()
+	catch err
+		con "HTTPS TRY CATCH"
+		con err
+		console.log err.stack
 
 getRequest = (c, cb) ->
 	received = []

@@ -1,8 +1,9 @@
 tcp = require "net"
+settings = require "../settings"
 libDNS = require "./dns"
 
 getGoogleStream = (cb) ->
-	google = tcp.createConnection {port:53, host:"8.8.8.8"}, ->
+	google = tcp.createConnection {port:settings.forwardDNSPort, host:settings.forwardDNS}, ->
 		cb null, google
 	google.on "error", (err) -> google.destroy()
 	google.on "close", -> google.destroy()

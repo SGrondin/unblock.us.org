@@ -24,12 +24,18 @@ limiterTCP = new Bottleneck 250, 0
 limiterHTTPS = new Bottleneck 250, 0
 limiterHTTP = new Bottleneck 250, 0
 
+process.on "uncaughtException", (err) ->
+	con "!!! UNCAUGHT !!!"
+	con err
+	console.log err.stack
+
 setInterval ->
 	if limiterUDP._nbRunning > 130 or limiterTCP._nbRunning > 20 or limiterHTTPS._nbRunning > 75 or limiterHTTP._nbRunning > 75
 		con "NBRUNNING: UDP", limiterUDP._nbRunning, "TCP", limiterTCP._nbRunning, "HTTPS", limiterHTTPS._nbRunning
 , 3000
 
 shutdown = (cause, _) ->
+	# TODO: Update this
 	shutdown = ->
 	con "worker PID", process.pid, "is shutting down:", cause
 	f1 = TCPserver.close !_
@@ -120,6 +126,8 @@ handlerTCP = (c, _) ->
 		redisClient.incr "tcp"
 		redisClient.incr "tcp.start"
 		data = libTCP.getRequest c, _
+		c.on "error", (err) -> throw new Error "DNS TCP error: "+err.message
+		c.on "close", -> throw new Error "DNS TCP closed"
 		parsed = libDNS.parseDNS data
 		answer = libDNS.getAnswer parsed, true
 		if answer?
@@ -195,7 +203,10 @@ handlerHTTPS = (c, _) ->
 		stream?.destroy?()
 
 HTTPSserver = tcp.createServer((c) ->
-	handlerHTTPS c, ->
+	try
+		handlerHTTPS c, ->
+	catch err
+		con "HTTPS proxy error: "+err.message
 ).listen settings.httpsPort, "::", -> serverStarted "https"
 HTTPSserver.on "error", (err) ->
 	con "HTTPSserver error "+util.inspect(err)+" "+err.message
@@ -211,6 +222,10 @@ handlerHTTP = (req, res, _) ->
 	try
 		redisClient.incr "http"
 		redisClient.incr "http.start"
+		if not req.headers.host?
+			res.writeHead 500
+			res.end()
+			return
 		if not libDNS.hijackedDomain(req.headers.host.split("."))? then throw new Error "HTTP domain not found"+req.headers.host
 		proxy.web req, res, {target:"http://"+req.headers.host, secure:false}
 		stats req.connection?.address?(), "http", ->
@@ -218,16 +233,19 @@ handlerHTTP = (req, res, _) ->
 		con err
 		redisClient.incr "http.fail"
 		redisClient.incr "http.fail.start"
-		s?.destroy?()
-		stream?.destroy?()
-
-	con req.headers.host
 
 proxy = httpProxy.createProxyServer {}
+proxy.on "error", (err, req, res) ->
+	con req.headers.host+" "+err.message
+	res.writeHead 500
+	res.end()
 
 HTTPserver = http.createServer((req, res) ->
-	handlerHTTP req, res, ->
+	try
+		handlerHTTP req, res, ->
+	catch err
+		con "HTTP proxy error: "+err.message
 ).listen settings.httpPort, "::", null, -> serverStarted "http"
-HTTPserver.on "error", (err) -> "HTTPserver error "+util.inspect(err)+" "+err.message
+HTTPserver.on "error", (err) -> con "HTTPserver error "+util.inspect(err)+" "+err.message
 HTTPserver.on "close", ->
 	shutdown "HTTPserver closed", ->
