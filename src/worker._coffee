@@ -1,7 +1,9 @@
 udp = require "dgram"
 tcp = require "net"
 http = require "http"
-rawCreateServer = require "http-raw"
+httpProxy = require "http-proxy"
+https = require "https"
+fs = require "fs"
 crypto = require "crypto"
 Bottleneck = require "bottleneck"
 geoip = require "geoip-lite"
@@ -17,7 +19,6 @@ libUDP = require "./dns_udp"
 libTCP = require "./dns_tcp"
 libDNS = require "./dns"
 libHTTPS = require "./https"
-libHTTP = require "./http"
 limiterUDP = new Bottleneck 250, 0
 limiterTCP = new Bottleneck 250, 0
 limiterHTTPS = new Bottleneck 250, 0
@@ -59,7 +60,7 @@ services = {}
 serverStarted = (service) ->
 	try
 		services[service] = true
-		if services.udp4 and services.udp6 and services.tcp and services.https and services.http
+		if services.udp4 and services.udp6 and services.tcp and services.host and services.https and services.http
 			process.setuid "nobody"
 			con "Server ready", process.pid
 			process.send {cmd:"online"}
@@ -142,6 +143,30 @@ TCPserver.on "error", (err) ->
 	console.log err.stack
 TCPserver.on "close", -> shutdown "TCPserver closed", ->
 
+#####################
+# SETUP HOST TUNNEL #
+#####################
+
+handlerHostTunnel = (req, res, _) ->
+	con "!!"
+	con req.connection.address()
+	con req.headers
+	con "!!"
+	res.writeHead 200
+	res.end "hello world!"
+
+hostTunnelServer = https.createServer({
+	key:	fs.readFileSync(settings.wildcardKey),
+	cert:	fs.readFileSync(settings.wildcardCert)
+	}, (req, res) ->
+	handlerHostTunnel req, res, ->
+).listen settings.internalHostTunnelPort, "127.0.0.1", null, -> serverStarted "host"
+hostTunnelServer.on "error", (err) ->
+	con "hostTunnelServer error "+util.inspect(err)+" "+err.message
+	console.log err.stack
+hostTunnelServer.on "close", ->
+	shutdown "hostTunnelServer closed", ->
+
 ######################
 # SETUP HTTPS TUNNEL #
 ######################
@@ -151,7 +176,12 @@ handlerHTTPS = (c, _) ->
 		redisClient.incr "https"
 		redisClient.incr "https.start"
 		[host, received] = libHTTPS.getRequest c, [_]
-		if not libDNS.hijackedDomain(host.split("."))? then throw new Error "HTTPS Domain not found: "+host
+
+		# Reject if domain is not in the settings
+		if not libDNS.hijackedDomain(host.split(".")).domain? then throw new Error "HTTPS Domain not found: "+host
+
+		# Check if host tunneling
+
 		stream = limiterHTTPS.submit libHTTPS.getHTTPSstream, host, _
 		stream.write received
 		c.pipe(stream).pipe(c)
@@ -182,10 +212,7 @@ handlerHTTP = (req, res, _) ->
 		redisClient.incr "http"
 		redisClient.incr "http.start"
 		if not libDNS.hijackedDomain(req.headers.host.split("."))? then throw new Error "HTTP domain not found"+req.headers.host
-		stream = libHTTP.getHTTPstream req.headers.host, _
-		sreq = req.createRawStream()
-		sres = res.createRawStream()
-		sreq.pipe(stream).pipe(sres)
+		proxy.web req, res, {target:"http://"+req.headers.host, secure:false}
 		stats req.connection?.address?(), "http", ->
 	catch err
 		con err
@@ -194,7 +221,11 @@ handlerHTTP = (req, res, _) ->
 		s?.destroy?()
 		stream?.destroy?()
 
-HTTPserver = rawCreateServer((req, res) ->
+	con req.headers.host
+
+proxy = httpProxy.createProxyServer {}
+
+HTTPserver = http.createServer((req, res) ->
 	handlerHTTP req, res, ->
 ).listen settings.httpPort, "::", null, -> serverStarted "http"
 HTTPserver.on "error", (err) -> "HTTPserver error "+util.inspect(err)+" "+err.message

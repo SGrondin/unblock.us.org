@@ -8,6 +8,10 @@ module.exports = {
 	"forwardDNSPort": "53530",
 	"httpPort" : 80,
 	"httpsPort" : 443,
+	"internalHostTunnelPort" : 15001,
+
+	"wildcardKey": "./ssl/host.key",
+	"wildcardCert": "./ssl/host.cert",
 
 	"hijacked" : {
 		"youtube.com" : "youtube.com",
@@ -20,6 +24,10 @@ module.exports = {
 		"twitter.com" : "twimg.com",
 		"t.co" : "t.co",
 
-		"reddit.com" : "reddit.com"
+		"unblock.us.org": "unblock.us.org",
+		"reddit.com" : "reddit.com",
+		"redditmedia.com": "redditmedia.com",
+
+		"failheap-challenge.com": "failheap-challenge.com"
 	}
 };

@@ -121,14 +121,18 @@ makeDNS = (parsed, redirect, isTCP) ->
 		new Buffer ret
 
 hijackedDomain = (name) -> # Returns the hijacked name or null
-	if name[-1..][0]? and name[-1..][0] == "unblock" then name.pop()
-	settings.hijacked[name[-2..].join(".")] or settings.hijacked[name[-3..].join(".")] or null
+	ret = {hostTunneling:false}
+	if name[-1..][0]? and name[-1..][0] == "unblock"
+		name.pop()
+		ret.hostTunneling = true
+	ret.domain = settings.hijacked[name[-2..].join(".")] or settings.hijacked[name[-3..].join(".")] or null
+	ret
 
 getAnswer = (parsed, isTCP) ->
 	if not (redirected_types[parsed.QUESTION.TYPE]? and parsed.QUESTION.CLASS == "IN") then return null
 
-	domain = hijackedDomain parsed.QUESTION.NAME[..]
-	if domain?
+	analyzed = hijackedDomain parsed.QUESTION.NAME[..]
+	if analyzed.domain?
 		makeDNS parsed, redirection[parsed.QUESTION.TYPE], isTCP
 	else
 		null
