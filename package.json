@@ -18,5 +18,11 @@
   "devDependencies":{
     "coffee-script": "1.7.x",
     "streamline": "0.10.x"
+  },
+  "scripts": {
+    "show": "./scripts/show.sh",
+    "stats": "./scripts/stats.sh",
+    "make": "./scripts/recompile.sh",
+    "start": "sudo echo '';sudo ./scripts/start.sh &"
   }
 }
