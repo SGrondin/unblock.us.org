@@ -18,6 +18,6 @@ toClient = (UDPservers, redisClient, data, _) ->
 	[port, ip, version] = redisClient.mget [keyName+"-port", keyName+"-IP", keyName+"-version"], _
 	if not (port? and ip? and version?) then throw new Error "Took too long for: "+parsed.QUESTION.NAME.join(".")
 	UDPservers["udp"+version].send data, 0, data.length, port, ip
-	ip
+	[port, ip, version]
 
 module.exports = {toDNSserver, toClient}

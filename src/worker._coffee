@@ -19,6 +19,7 @@ libUDP = require "./dns_udp"
 libTCP = require "./dns_tcp"
 libDNS = require "./dns"
 libHTTPS = require "./https"
+# Integrate next version of Bottleneck
 #limiterUDP = new Bottleneck 250, 0
 #limiterTCP = new Bottleneck 250, 0
 #limiterHTTPS = new Bottleneck 250, 0
@@ -30,15 +31,16 @@ process.on "uncaughtException", (err) ->
 	console.log err.stack
 
 shutdown = (cause, _) ->
-	# TODO: Update this
 	shutdown = ->
 	con "worker PID", process.pid, "is shutting down:", cause
-	f1 = TCPserver.close !_
-	f2 = HTTPSserver.close !_
-	UDPserver.close()
 	setTimeout process.exit, 10000
-	f1 _
-	f2 _
+	TCPserver.close _
+	hostTunnelServer.close _
+	HTTPSserver.close _
+	HTTPserver.close _
+	(socket.close() for socket of UDPservers)
+	DNSlistenServer.close()
+	setTimeout _, 2500
 	process.exit()
 process.on "SIGTERM", -> shutdown "SIGTERM", ->
 
@@ -47,9 +49,8 @@ stats = (ip, type, _) ->
 		country = geoip.lookup(ip)?.country
 		if not country?
 			country = "ZZ"
-			# con "ZZ: "+ip
 		redisClient.hincrby "countries."+type, country, 1, _
-		redisClient.sadd "ip."+type+".countries", country
+		redisClient.sadd "ip."+type+".countries", country, _
 		redisClient.sadd "ip."+type+"."+country, md5("thisisgonnaneedtobefixed"+ip), _
 	catch err
 		con err
@@ -67,7 +68,6 @@ serverStarted = (service) ->
 			process.send {cmd:"online"}
 	catch err
 		con err
-		con err.message
 
 ###############
 # SETUP REDIS #
@@ -83,25 +83,25 @@ redisClient.select settings.redisDB, _
 
 # TODO: Write blog post about why it has to be so complicated
 
-##### FROM DNS SERVER #####
+##### FROM DNS SERVER TO CLIENT #####
 handlerDNSlisten = (data, info, _) ->
 	try
-		ip = libUDP.toClient UDPservers, redisClient, data, _
+		[port, ip, version] = libUDP.toClient UDPservers, redisClient, data, _
 		stats ip, "dns", ->
 	catch err
 		redisClient.incr "udp.fail"
 		redisClient.incr "udp.fail.start"
 		try
 			failure = libDNS.makeDNS(parsed, libDNS.SERVERFAILURE, false)
-			socket.send failure, 0, failure.length, info.port, info.address
+			UDPservers["udp"+version].send failure, 0, failure.length, port, ip
 		catch e
-		console.log err
+		con "handlerDNSlisten error", err, err.stack
 
 DNSlistenServer = udp.createSocket "udp4"
 DNSlistenServer.on "error", (err) -> shutdown "DNSlistenServer error "+util.inspect(err)+" "+err.message, ->
 DNSlistenServer.on "message", (data, info) -> handlerDNSlisten data, info, ->
 
-##### TO DNS SERVER #####
+##### FROM CLIENT TO DNS SERVER #####
 handlerUDP = (socket, version, data, info, _) ->
 	try
 		redisClient.incr "udp"
@@ -116,10 +116,10 @@ handlerUDP = (socket, version, data, info, _) ->
 		redisClient.incr "udp.fail"
 		redisClient.incr "udp.fail.start"
 		try
-			failure = libDNS.makeDNS(parsed, libDNS.SERVERFAILURE, false)
+			failure = libDNS.makeDNS parsed, libDNS.SERVERFAILURE, false
 			socket.send failure, 0, failure.length, info.port, info.address
 		catch e
-		console.log err+" "+parsed?.QUESTION?.NAME?.join "."
+		con "handlerUDP error", (parsed?.QUESTION?.NAME?.join(".") or ""), err, err.stack
 
 UDPservers = {}
 [{IPversion:4, listenTo:"0.0.0.0"}, {IPversion:6, listenTo:"::"}].map (ip) ->
@@ -141,7 +141,7 @@ handlerTCP = (c, _) ->
 		redisClient.incr "tcp"
 		redisClient.incr "tcp.start"
 		data = libTCP.getRequest c, _
-		c.on "error", (err) -> throw new Error "DNS TCP error: "+err.message
+		c.on "error", (err) -> throw new Error "DNS TCP error: "+util.inspect(err)+" "+err.message
 		c.on "close", -> throw new Error "DNS TCP closed"
 		parsed = libDNS.parseDNS data
 		answer = libDNS.getAnswer parsed, true
@@ -153,17 +153,16 @@ handlerTCP = (c, _) ->
 			stream.write libDNS.prependLength data
 		stats c.remoteAddress, "dns", ->
 	catch err
-		con err
+		con "handlerTCP error", err
 		redisClient.incr "tcp.fail"
 		redisClient.incr "tcp.fail.start"
-		c.destroy()
+		c?.destroy()
 
 TCPserver = tcp.createServer((c) ->
 	handlerTCP c, ->
 ).listen 53, "::", -> serverStarted "tcp"
 TCPserver.on "error", (err) ->
-	con "TCPserver error "+util.inspect(err)+" "+err.message
-	console.log err.stack
+	con "TCPserver error ", err, err.stack
 TCPserver.on "close", -> shutdown "TCPserver closed", ->
 
 #####################
@@ -187,8 +186,7 @@ hostTunnelServer = https.createServer({
 hostTunnelServer.on "error", (err) ->
 	con "hostTunnelServer error "+util.inspect(err)+" "+err.message
 	console.log err.stack
-hostTunnelServer.on "close", ->
-	shutdown "hostTunnelServer closed", ->
+hostTunnelServer.on "close", -> shutdown "hostTunnelServer closed", ->
 
 ######################
 # SETUP HTTPS TUNNEL #
@@ -209,20 +207,18 @@ handlerHTTPS = (c, _) ->
 		c.resume()
 		stats c.remoteAddress, "http", ->
 	catch err
-		con err.message
+		con "handlerHTTPS error", err, err.stack
 		redisClient.incr "https.fail"
 		redisClient.incr "https.fail.start"
-		c?.destroy?()
-		stream?.destroy?()
+		c?.destroy()
+		stream?.destroy()
 
 HTTPSserver = tcp.createServer((c) ->
 	handlerHTTPS c, ->
 ).listen settings.httpsPort, "::", -> serverStarted "https"
 HTTPSserver.on "error", (err) ->
-	con "HTTPSserver error "+util.inspect(err)+" "+err.message
-	console.log err.stack
-HTTPSserver.on "close", ->
-	shutdown "HTTPSserver closed", ->
+	con "HTTPSserver error", err, err.stack
+HTTPSserver.on "close", -> shutdown "HTTPSserver closed", ->
 
 #####################
 # SETUP HTTP TUNNEL #
@@ -237,21 +233,20 @@ handlerHTTP = (req, res, _) ->
 		redisClient.incr "http"
 		redisClient.incr "http.start"
 		proxy.web req, res, {target:"http://"+req.headers.host, secure:false}
-		stats req.connection?.address?(), "http", ->
+		stats req.connection.remoteAddress, "http", ->
 	catch err
-		con err
+		con "HTTP error", err, err.stack
 		redisClient.incr "http.fail"
 		redisClient.incr "http.fail.start"
 
 proxy = httpProxy.createProxyServer {}
 proxy.on "error", (err, req, res) ->
-	con req.headers.host+" "+err.message
+	con "HTTPproxy error", req.headers.host+" "+err.message
 	res.writeHead 500
 	res.end()
 
 HTTPserver = http.createServer((req, res) ->
 	handlerHTTP req, res, ->
 ).listen settings.httpPort, "::", null, -> serverStarted "http"
-HTTPserver.on "error", (err) -> con "HTTPserver error "+util.inspect(err)+" "+err.message
-HTTPserver.on "close", ->
-	shutdown "HTTPserver closed", ->
+HTTPserver.on "error", (err) -> con "HTTPserver error", err
+HTTPserver.on "close", -> shutdown "HTTPserver closed", ->
