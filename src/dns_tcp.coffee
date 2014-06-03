@@ -2,12 +2,12 @@ tcp = require "net"
 settings = require "../settings"
 libDNS = require "./dns"
 
-getGoogleStream = (cb) ->
-	google = tcp.createConnection {port:settings.forwardDNSPort, host:settings.forwardDNS}, ->
-		cb null, google
-	google.on "error", (err) -> google.destroy()
-	google.on "close", -> google.destroy()
-	google.on "timeout", -> google.destroy()
+getDNSstream = (cb) ->
+	stream = tcp.createConnection {port:settings.forwardDNSport, host:settings.forwardDNS}, ->
+		cb null, stream
+	stream.on "error", (err) -> stream.destroy()
+	stream.on "close", -> stream.destroy()
+	stream.on "timeout", -> stream.destroy()
 
 # Refactor this at some point
 getRequest = (client, cb) ->
@@ -27,4 +27,4 @@ getRequest = (client, cb) ->
 			clean null, Buffer.concat(received)[2..lengthExpected+1]
 	client.on "end", -> clean "TCPgetRequestClientClosedConnection"
 
-module.exports = {getGoogleStream, getRequest}
+module.exports = {getDNSstream, getRequest}

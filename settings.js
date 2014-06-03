@@ -1,12 +1,12 @@
 module.exports = {
 	"redisDB" : 0,
-	"IPv4" : [176, 58, 120, 112],
-	"IPv6" : [0x2a,0x01, 0x7e,0x00, 0,0,0,0, 0xf0,0x3c, 0x91,0xff, 0xfe,0xae, 0xe9,0x6e],
-	//"IPv4" : [192,168,1,101],
-	//"IPv6" : [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+	//"IPv4" : [176, 58, 120, 112],
+	//"IPv6" : [0x2a,0x01, 0x7e,0x00, 0,0,0,0, 0xf0,0x3c, 0x91,0xff, 0xfe,0xae, 0xe9,0x6e],
+	"IPv4" : [192,168,1,101],
+	"IPv6" : [0,0,0,0,0,0,0,0,255,255,255,255,0,0,0,1],
 	"forwardDNS": "127.0.0.1",
-	"forwardDNSPort": 53530,
-	"httpPort" : 8080,
+	"forwardDNSport": 53530,
+	"httpPort" : 80,
 	"httpsPort" : 443,
 	"internalHostTunnelPort" : 15001,
 

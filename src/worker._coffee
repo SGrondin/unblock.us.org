@@ -29,15 +29,6 @@ process.on "uncaughtException", (err) ->
 	con err
 	console.log err.stack
 
-#setInterval ->
-#	if limiterUDP._nbRunning > 130 or limiterTCP._nbRunning > 20 or limiterHTTPS._nbRunning > 75 or limiterHTTP._nbRunning > 75
-#		con "NBRUNNING: UDP", limiterUDP._nbRunning, "TCP", limiterTCP._nbRunning, "HTTPS", limiterHTTPS._nbRunning
-#, 3000
-
-setInterval ->
-	global.gc()
-, 3000
-
 shutdown = (cause, _) ->
 	# TODO: Update this
 	shutdown = ->
@@ -89,38 +80,58 @@ redisClient.select settings.redisDB, _
 #################
 # SETUP DNS UDP #
 #################
-handlerUDP = (UDPserver, data, info, _) ->
+
+# TODO: Write blog post about why it has to be so complicated
+
+##### FROM DNS SERVER #####
+handlerDNSlisten = (data, info, _) ->
+	try
+		ip = libUDP.toClient UDPservers, redisClient, data, _
+		stats ip, "dns", ->
+	catch err
+		redisClient.incr "udp.fail"
+		redisClient.incr "udp.fail.start"
+		try
+			failure = libDNS.makeDNS(parsed, libDNS.SERVERFAILURE, false)
+			socket.send failure, 0, failure.length, info.port, info.address
+		catch e
+		console.log err
+
+DNSlistenServer = udp.createSocket "udp4"
+DNSlistenServer.on "error", (err) -> shutdown "DNSlistenServer error "+util.inspect(err)+" "+err.message, ->
+DNSlistenServer.on "message", (data, info) -> handlerDNSlisten data, info, ->
+
+##### TO DNS SERVER #####
+handlerUDP = (socket, version, data, info, _) ->
 	try
 		redisClient.incr "udp"
 		redisClient.incr "udp.start"
 		parsed = libDNS.parseDNS data
 		answer = libDNS.getAnswer parsed, false
 		if answer?
-			resData = answer
+			socket.send answer, 0, answer.length, info.port, info.address
 		else
-			[resData, resInfo] = libUDP.forwardUDP data, [_]
-		libUDP.sendUDP UDPserver, info.address, info.port, resData, _
-		# console.log parsed?.QUESTION?.NAME?.join(".")+" OK"
-		stats info.address, "dns", ->
+			libUDP.toDNSserver DNSlistenServer, redisClient, data, info, version, parsed, _
 	catch err
 		redisClient.incr "udp.fail"
 		redisClient.incr "udp.fail.start"
 		try
-			libUDP.sendUDP UDPserver, info.address, info.port, libDNS.makeDNS(parsed, libDNS.SERVERFAILURE, false), _
+			failure = libDNS.makeDNS(parsed, libDNS.SERVERFAILURE, false)
+			socket.send failure, 0, failure.length, info.port, info.address
 		catch e
 		console.log err+" "+parsed?.QUESTION?.NAME?.join "."
 
-[{IPversion:4, listenTo:"0.0.0.0"}, {IPversion:6, listenTo:"::"}].forEach (ip) ->
+UDPservers = {}
+[{IPversion:4, listenTo:"0.0.0.0"}, {IPversion:6, listenTo:"::"}].map (ip) ->
 	UDPserver = udp.createSocket "udp"+ip.IPversion
 	UDPserver.on "error", (err) -> shutdown "UDPserver(IPv#{ip.IPversion}) error "+util.inspect(err)+" "+err.message, ->
 	UDPserver.on "listening", -> serverStarted "udp"+ip.IPversion
 	UDPserver.on "close", -> shutdown "UDPserver(IPv#{ip.IPversion}) closed", ->
 	UDPserver.on "message", (data, info) ->
-		try
-			handlerUDP UDPserver, data, info, (err) -> if err? then throw err
-		catch err
-			con err
+		handlerUDP UDPserver, ip.IPversion, data, info, (err) -> if err? then throw err
 	UDPserver.bind 53, ip.listenTo
+	UDPservers["udp"+ip.IPversion] = UDPserver
+
 
 #################
 # SETUP DNS TCP #
@@ -137,9 +148,9 @@ handlerTCP = (c, _) ->
 		if answer?
 			c.end answer
 		else
-			google = libTCP.getGoogleStream _
-			google.pipe c
-			google.write libDNS.prependLength data
+			stream = libTCP.getDNSstream _
+			stream.pipe c
+			stream.write libDNS.prependLength data
 		stats c.remoteAddress, "dns", ->
 	catch err
 		con err
@@ -192,8 +203,6 @@ handlerHTTPS = (c, _) ->
 		# Reject if domain is not in the settings
 		if not libDNS.hijackedDomain(host.split(".")).domain? then throw new Error "HTTPS Domain not found: "+host
 
-		# Check if host tunneling
-
 		stream = libHTTPS.getHTTPSstream host, _
 		stream.write received
 		c.pipe(stream).pipe(c)
@@ -207,10 +216,7 @@ handlerHTTPS = (c, _) ->
 		stream?.destroy?()
 
 HTTPSserver = tcp.createServer((c) ->
-	try
-		handlerHTTPS c, ->
-	catch err
-		con "HTTPS proxy error: "+err.message
+	handlerHTTPS c, ->
 ).listen settings.httpsPort, "::", -> serverStarted "https"
 HTTPSserver.on "error", (err) ->
 	con "HTTPSserver error "+util.inspect(err)+" "+err.message
@@ -244,10 +250,7 @@ proxy.on "error", (err, req, res) ->
 	res.end()
 
 HTTPserver = http.createServer((req, res) ->
-	try
-		handlerHTTP req, res, ->
-	catch err
-		con "HTTP proxy error: "+err.message
+	handlerHTTP req, res, ->
 ).listen settings.httpPort, "::", null, -> serverStarted "http"
 HTTPserver.on "error", (err) -> con "HTTPserver error "+util.inspect(err)+" "+err.message
 HTTPserver.on "close", ->
