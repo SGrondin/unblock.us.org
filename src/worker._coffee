@@ -177,16 +177,18 @@ handlerHTTPS = (c, _) ->
 		redisClient.incr "https.start"
 		[host, received] = libHTTPS.getRequest c, [_]
 
-		# Reject if domain is not in the settings
-		if not libDNS.hijackedDomain(host.split(".")).domain? then throw new Error "HTTPS Domain not found: "+host
+		analyzed = libDNS.hijackedDomain(host.split("."))
+		if not analyzed.domain? then throw new Error "HTTPS Domain not found: "+host
 
-		# Check if host tunneling
-
-		stream = limiterHTTPS.submit libHTTPS.getHTTPSstream, host, _
-		stream.write received
-		c.pipe(stream).pipe(c)
-		c.resume()
-		stats c.remoteAddress, "http", ->
+		if host.split(".")[-3..].join(".") == "unblock.us.org"
+			con host
+			
+		else
+			stream = limiterHTTPS.submit libHTTPS.getHTTPSstream, host, _
+			stream.write received
+			c.pipe(stream).pipe(c)
+			c.resume()
+			stats c.remoteAddress, "http", ->
 	catch err
 		con err.message
 		redisClient.incr "https.fail"
@@ -209,22 +211,28 @@ HTTPSserver.on "close", ->
 
 handlerHTTP = (req, res, _) ->
 	try
-		redisClient.incr "http"
-		redisClient.incr "http.start"
-		if not libDNS.hijackedDomain(req.headers.host.split("."))? then throw new Error "HTTP domain not found"+req.headers.host
-		proxy.web req, res, {target:"http://"+req.headers.host, secure:false}
-		stats req.connection?.address?(), "http", ->
+		analyzed = libDNS.hijackedDomain(req.headers.host.split("."))
+		if not analyzed.domain? then throw new Error "HTTP domain not found"+req.headers.host
+
+		if analyzed.hostTunneling
+			location = "https://mytest.unblock.us.org/"
+			con analyzed.domain+"  TO  "+location
+			res.writeHead 302, {Location:location}
+			res.end "<html><body>Moved to <a href=\"#{location}\">#{location}</a></body></html>"
+		else
+			try
+				redisClient.incr "http"
+				redisClient.incr "http.start"
+				proxy.web req, res, {target:"http://"+req.headers.host, secure:false}
+				stats req.connection?.address?(), "http", ->
+			catch err
+				con err
+				redisClient.incr "http.fail"
+				redisClient.incr "http.fail.start"
 	catch err
 		con err
-		redisClient.incr "http.fail"
-		redisClient.incr "http.fail.start"
-		s?.destroy?()
-		stream?.destroy?()
-
-	con req.headers.host
 
 proxy = httpProxy.createProxyServer {}
-
 HTTPserver = http.createServer((req, res) ->
 	handlerHTTP req, res, ->
 ).listen settings.httpPort, "::", null, -> serverStarted "http"
