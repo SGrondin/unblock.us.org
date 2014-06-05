@@ -266,9 +266,6 @@ handlerHostTunnel = (req, res, _) ->
 		options = {hostname:wantedDomain, port:443, path:req.url, method:req.method, headers:req.headers}
 		delete options.headers["accept-encoding"] # TODO: Add gzip support
 
-		cheerio = require "cheerio"
-
-
 		preq = https.request options, (pres) ->
 
 			if pres.statusCode in [301, 302]
@@ -284,7 +281,6 @@ handlerHostTunnel = (req, res, _) ->
 					else
 						res.write data
 				pres.on "end", ->
-					con "ended"
 					if isAltered
 						str = libHost.redirectAllURLs (new Buffer Buffer.concat buffers).toString "utf8"
 						res.end str, "utf8"

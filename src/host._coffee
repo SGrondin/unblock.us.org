@@ -17,8 +17,11 @@ contentTypes = {
 }
 isAltered = (ct) -> contentTypes[ct]?
 
-
-redirectAllURLs = (str) -> str.replace((new RegExp "ytimg[.]com", "g"), "ytimg.com.unblock")
+# Creates something like (youtube[.]com)|(ggpht[.]com)|(ytimg[.]com)|(youtube-nocookie[.]com)|(youtu[.]be)|(twimg[.]com)
+rDomains = new RegExp ("("+a.replace(/[.]/g, "[.]")+")" for a of settings.hijacked).join("|"), "g"
+redirectAllURLs = (str) ->
+	# TODO: Reuse hashes to save a whole HTTP round-trip
+	str.replace rDomains, (e) -> e+".unblock"
 
 
 module.exports = {redirectToHash, isAltered, redirectAllURLs}
