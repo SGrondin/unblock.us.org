@@ -185,7 +185,8 @@ handlerHTTP = (req, res, _) ->
 		if analyzed.hostTunneling
 			host = req.headers.host.split(".")[..-2].join(".")
 			clientIP = req.connection.remoteAddress
-			libHost.redirectToHash redisClient, res, host, req.url, clientIP, _
+			hash = libHost.getHash redisClient, host, clientIP, _
+			libHost.redirectToHash res, hash, req.url
 		else
 			redisClient.incr "http"
 			redisClient.incr "http.start"
@@ -270,7 +271,9 @@ handlerHostTunnel = (req, res, _) ->
 
 			if pres.statusCode in [301, 302]
 				host = (url.parse (pres.headers.Location or pres.headers.location))?.hostname
-				libHost.redirectToHash redisClient, res, host, req.url, clientIP, ->
+				libHost.getHash redisClient, host, clientIP, (err, hash) ->
+					if err? then throw err
+					libHost.redirectToHash res, hash, req.url
 			else
 				res.writeHead pres.statusCode, pres.headers
 				isAltered = libHost.isAltered (pres.headers["Content-Type"] or pres.headers["content-type"])?.toLowerCase().split(";")[0].trim()
@@ -283,8 +286,9 @@ handlerHostTunnel = (req, res, _) ->
 				pres.on "end", ->
 					if isAltered
 						# TODO: Some kind of pumping mechanism instead of a giant buffer all at once
-						str = libHost.redirectAllURLs (new Buffer Buffer.concat buffers).toString "utf8"
-						res.end str, "utf8"
+						libHost.redirectAllURLs (new Buffer Buffer.concat buffers).toString("utf8"), redisClient, clientIP, wantedDomain, hash, (err, str) ->
+							if err? then throw err
+							res.end str, "utf8"
 					else
 						res.end()
 
