@@ -282,6 +282,7 @@ handlerHostTunnel = (req, res, _) ->
 						res.write data
 				pres.on "end", ->
 					if isAltered
+						# TODO: Some kind of pumping mechanism instead of a giant buffer all at once
 						str = libHost.redirectAllURLs (new Buffer Buffer.concat buffers).toString "utf8"
 						res.end str, "utf8"
 					else

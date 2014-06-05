@@ -17,11 +17,16 @@ contentTypes = {
 }
 isAltered = (ct) -> contentTypes[ct]?
 
-# Creates something like (youtube[.]com)|(ggpht[.]com)|(ytimg[.]com)|(youtube-nocookie[.]com)|(youtu[.]be)|(twimg[.]com)
-rDomains = new RegExp ("("+a.replace(/[.]/g, "[.]")+")" for a of settings.hijacked).join("|"), "g"
+# This will probably need a lot of tweaking
+# Creates something like ((https)://([a-zA-Z0-9\-]+[.]{1})*?)?((youtube[.]com)|(ggpht[.]com)|(ytimg[.]com)|(youtube-nocookie[.]com)|(youtu[.]be)
+rDomains = new RegExp "((https)://([a-zA-Z0-9\-]+[.]{1})*?)?("+("("+a.replace(/[.]/g, "[.]")+")" for a of settings.hijacked).join("|")+")", "g"
 redirectAllURLs = (str) ->
 	# TODO: Reuse hashes to save a whole HTTP round-trip
-	str.replace rDomains, (e) -> e+".unblock"
+	str.replace rDomains, (e) ->
+		if e[0..4] == "https"
+			"http"+e[5..]+".unblock"
+		else
+			e+".unblock"
 
 
 module.exports = {redirectToHash, isAltered, redirectAllURLs}
