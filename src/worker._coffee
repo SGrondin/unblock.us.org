@@ -172,8 +172,9 @@ TCPserver.on "close", -> shutdown "TCPserver closed", ->
 # SETUP HTTP TUNNEL #
 #####################
 
-close500 = (res) ->
+close500 = (res, reason="") ->
 	res.writeHead 500
+	res.write reason
 	res.end()
 
 handlerHTTP = (req, res, _) ->
@@ -255,7 +256,7 @@ handlerHostTunnel = (req, res, _) ->
 		hash = host.split(".")[0]
 		keys = ["hostTunneling-"+hash, "xforwardedfor-"+hash]
 		[wantedDomain, clientIP] = redisClient.mget keys, _
-		if not wantedDomain? then return close500 res
+		if not wantedDomain? then return close500 res, "Expired link. Try entering the address with '.unblock' again"
 
 		keys.forEach_ _, -1, (_, k) ->
 			redisClient.expire [k, settings.hostTunnelingCaching], _
@@ -265,6 +266,9 @@ handlerHostTunnel = (req, res, _) ->
 		options = {hostname:wantedDomain, port:443, path:req.url, method:req.method, headers:req.headers}
 		delete options.headers["accept-encoding"] # TODO: Add gzip support
 
+		cheerio = require "cheerio"
+
+
 		preq = https.request options, (pres) ->
 
 			if pres.statusCode in [301, 302]
@@ -272,12 +276,20 @@ handlerHostTunnel = (req, res, _) ->
 				libHost.redirectToHash redisClient, res, host, req.url, clientIP, ->
 			else
 				res.writeHead pres.statusCode, pres.headers
+				isAltered = libHost.isAltered (pres.headers["Content-Type"] or pres.headers["content-type"])?.toLowerCase().split(";")[0].trim()
+				buffers = []
 				pres.on "data", (data) ->
-					# console.log data.toString "utf8"
-					res.write data
+					if isAltered
+						buffers.push data
+					else
+						res.write data
 				pres.on "end", ->
 					con "ended"
-					res.end()
+					if isAltered
+						str = libHost.redirectAllURLs (new Buffer Buffer.concat buffers).toString "utf8"
+						res.end str, "utf8"
+					else
+						res.end()
 
 		preq.end()
 

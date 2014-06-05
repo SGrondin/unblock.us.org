@@ -12,4 +12,13 @@ redirectToHash = (redisClient, res, host, path, clientIP, _) ->
 	res.writeHead 302, {Location:redirect}
 	res.end """<html><body>The unblock.us.org project<br /><br />Unblocked at <a href="#{redirect}">#{redirect}</a></body></html>"""
 
-module.exports = {redirectToHash}
+contentTypes = {
+	"application/javascript", "application/xhtml+xml", "application/xml", "image/svg+xml", "text/css", "text/html", "text/javascript"
+}
+isAltered = (ct) -> contentTypes[ct]?
+
+
+redirectAllURLs = (str) -> str.replace((new RegExp "ytimg[.]com", "g"), "ytimg.com.unblock")
+
+
+module.exports = {redirectToHash, isAltered, redirectAllURLs}

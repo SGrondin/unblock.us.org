@@ -11,8 +11,8 @@ module.exports = {
 	"internalHostTunnelPort" : 15001,
 	"hostTunnelingCaching" : 600,
 
-	"wildcardKey": "./ssl/host.key",
-	"wildcardCert": "./ssl/host.cert",
+	"wildcardKey": "/home/don/ssl/host.key",
+	"wildcardCert": "/home/don/ssl/host.cert",
 
 	"hostTunnelingDomain": "unblock.us.org",
 
@@ -25,6 +25,6 @@ module.exports = {
 
 		"twimg.com" : "twimg.com",
 		"twitter.com" : "twitter.com",
-		"t.co" : "t.co",
+		"t.co" : "t.co"
 	}
 };
