@@ -286,7 +286,7 @@ handlerHostTunnel = (req, res, _) ->
 				pres.on "end", ->
 					if isAltered
 						# TODO: Some kind of pumping mechanism instead of a giant buffer all at once
-						libHost.redirectAllURLs (new Buffer Buffer.concat buffers).toString("utf8"), redisClient, clientIP, wantedDomain, hash, (err, str) ->
+						libHost.redirectAllURLs (new Buffer Buffer.concat buffers).toString("utf8"), redisClient, clientIP, {wantedDomain:hash}, (err, str) ->
 							if err? then throw err
 							res.end str, "utf8"
 					else

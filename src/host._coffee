@@ -23,10 +23,8 @@ contentTypes = {
 isAltered = (ct) -> contentTypes[ct]?
 
 # This will probably need a lot of tweaking
-# Creates something like (?:https://(?:[a-zA-Z0-9\-]+[.]{1})*?)?(?:(?:youtube[.]com)|(?:ggpht[.]com)|(?:ytimg[.]com)|(?:youtube-nocookie[.]com)|(?:youtu[.]be)
-rDomains = new RegExp "(?:https://(?:[a-zA-Z0-9\-]+[.]{1})*?)?(?:"+("(?:"+a.replace(/[.]/g, "[.]")+")" for a of settings.hijacked).join("|")+")", "g"
-redirectAllURLs = (str, redisClient, clientIP, currentDomain, currentHash, _) ->
-	hashes = {currentDomain:currentHash}
+rDomains = new RegExp "(?:https://)?(?:(?:[a-zA-Z0-9\-]+[.]{1})*?)?(?:"+("(?:"+a.replace(/[.]/g, "[.]")+")" for a of settings.hijacked).join("|")+")", "g"
+redirectAllURLs = (str, redisClient, clientIP, hashCache, _) ->
 	asyncReplace str, rDomains, ((found, f2, f3, _) ->
 		parsed = url.parse found
 		parsed.path = ""
@@ -35,13 +33,14 @@ redirectAllURLs = (str, redisClient, clientIP, currentDomain, currentHash, _) ->
 			parsed.hostname = parsed.href
 		parsed.host = null # Force the url module to use hostname+port
 		if parsed.protocol? then parsed.protocol = "https"
-		if hashes[parsed.hostname]?
-			parsed.hostname = hashes[parsed.hostname]+"."+settings.hostTunnelingDomain
+		if hashCache[parsed.hostname]?
+			parsed.hostname = hashCache[parsed.hostname]+"."+settings.hostTunnelingDomain
 		else
 			hash = getHash redisClient, parsed.hostname, clientIP, _
-			hashes[parsed.hostname] = hash
+			hashCache[parsed.hostname] = hash
 			parsed.hostname = hash+"."+settings.hostTunnelingDomain
-		url.format parsed
+		formatted = url.format parsed
+		if formatted[0..1] == "//" then formatted[2..] else formatted
 	), _
 
 module.exports = {getHash, redirectToHash, isAltered, redirectAllURLs}
