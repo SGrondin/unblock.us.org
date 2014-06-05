@@ -9,9 +9,12 @@ module.exports = {
 	"httpPort" : 80,
 	"httpsPort" : 443,
 	"internalHostTunnelPort" : 15001,
+	"hostTunnelingCaching" : 600,
 
 	"wildcardKey": "./ssl/host.key",
 	"wildcardCert": "./ssl/host.cert",
+
+	"hostTunnelingDomain": "unblock.us.org",
 
 	"hijacked" : {
 		"youtube.com" : "youtube.com",
@@ -21,8 +24,7 @@ module.exports = {
 		"youtu.be" : "youtu.be",
 
 		"twimg.com" : "twimg.com",
-		"twitter.com" : "twimg.com",
-		"t.co" : "t.co"
-
+		"twitter.com" : "twitter.com",
+		"t.co" : "t.co",
 	}
 };

@@ -11,7 +11,6 @@ nbWorkers = Math.min 4, cpus
 if cluster.isMaster
 	redisClient = redis.createClient()
 	redisClient.select settings.redisDB
-	redisClient.flushdb _
 
 	resetEveryInterval = [
 		"udp", "udp.fail", "tcp", "tcp.fail"
@@ -22,6 +21,10 @@ if cluster.isMaster
 		resetEveryInterval.forEach_ _, -1, (_, k) ->
 			redisClient.set k, 0, _
 
+	# TODO: Clear country stats here and don't flush
+	redisClient.flushdb _
+
+	interval _
 	setInterval ->
 		interval ->
 	, (60 * 1000)

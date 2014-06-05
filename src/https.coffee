@@ -47,17 +47,15 @@ parseHTTPS = (packet) ->
 		null
 
 
-getHTTPSstream = (host, cb) ->
+getStream = (host, port, cb) ->
 	try
-		s = tcp.createConnection {port:443, host}, ->
+		s = tcp.createConnection {host, port}, ->
 			cb null, s
 		s.on "error", (err) -> s.destroy()
 		s.on "close", -> s.destroy()
 		s.on "timeout", -> s.destroy()
 	catch err
-		con "HTTPS TRY CATCH"
-		con err
-		console.log err.stack
+		con "HTTPS TRY CATCH", err, err.stack
 
 getRequest = (c, cb) ->
 	received = []
@@ -85,4 +83,4 @@ getRequest = (c, cb) ->
 		c.destroy()
 		clean new Error "HTTPS socket closed"
 
-module.exports = {getHTTPSstream, getRequest}
+module.exports = {getStream, getRequest}
