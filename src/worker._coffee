@@ -262,9 +262,11 @@ handlerHostTunnel = (req, res, _) ->
 		keys.forEach_ _, -1, (_, k) ->
 			redisClient.expire [k, settings.hostTunnelingCaching], _
 
+		con wantedDomain+req.url
+
 		# Arrange the headers to server
 		req.headers.host = wantedDomain
-		req.headers.referer = "https://"+wantedDomain+"/"
+		if req.headers.referer? then req.headers.referer = "https://"+wantedDomain+req.url
 		if req.headers.origin? then req.headers.origin = "https://"+wantedDomain
 		req.headers["x-forwarded-for"] = clientIP
 		delete req.headers["accept-encoding"] # TODO: Add gzip support

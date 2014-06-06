@@ -16,13 +16,20 @@ settings = {
 }
 
 
-rDomains = new RegExp "(.|^)(?:https://)?(?:(?:[a-zA-Z0-9\-]+[.]{1})*?)?(?:"+("(?:"+a.replace(/[.]/g, "[.]")+")" for a of settings.hijacked).join("|")+")", "g"
-# rDomains = new RegExp "(?:https://)?(?:(?:[a-zA-Z0-9\-]+[.]{1})*?)?(?:"+("(?:"+a.replace(/[.]/g, "[.]")+")" for a of settings.hijacked).join("|")+")", "g"
+# rDomains = new RegExp "(.|^)(?:https://)?(?:(?:[a-zA-Z0-9\-]+[.]{1})*?)?(?:"+("(?:"+a.replace(/[.]/g, "[.]")+")" for a of settings.hijacked).join("|")+")", "g"
+rDomains = new RegExp "(.|^)((?:https://)?(?:(?:[a-zA-Z0-9\-]+[.]{1})*?)?(?:"+("(?:"+a.replace(/[.]/g, "[.]")+")" for a of settings.hijacked).join("|")+"))", "g"
 rLookbehind = new RegExp "^[^a-zA-Z0-9\-.]?$"
-str = """t.co t.co<li><a href="//support.twitter.com">Help</a><spat.con class="dot divider"> &middot;</span></li>"""
+rDots = new RegExp "[.]", "g"
+str = """t.co t.co<li><a href="//support.twitter.com">Help</a>i1.ytimg.com<spat.con class="dot divider"> &middot;</span>support.twitter\\.com</li>"""
 
-console.log str.replace rDomains, (found, lookbehind) ->
+console.log rDomains
+# console.log str+"\n"
+console.log str.replace rDomains, (whole, lookbehind, found) ->
 	if not rLookbehind.test(lookbehind) then return found
+
+	backslashes = if found.indexOf("\\") > 0 then true else false
+	con found
+	con lookbehind
 
 	parsed = url.parse found
 	parsed.path = ""
@@ -34,5 +41,8 @@ console.log str.replace rDomains, (found, lookbehind) ->
 	hash = "ABCDEF"
 	parsed.hostname = hash+".unblock.us.org"
 
+	# Final formatting
 	formatted = url.format parsed
-	if formatted[0..1] == "//" then lookbehind+formatted[2..] else lookbehind+formatted
+	if formatted[0..1] == "//" then formatted = formatted[2..]
+	if backslashes then formatted = formatted.replace rDots, "\\."
+	lookbehind+formatted

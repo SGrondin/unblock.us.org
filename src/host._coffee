@@ -28,15 +28,19 @@ contentTypes = {
 }
 isAltered = (ct) -> contentTypes[ct]?
 
+
 # This will probably need a lot of tweaking
 # TODO: Document this monster
-rDomains = new RegExp "(.|^)(?:https://)?(?:(?:[a-zA-Z0-9\-]+[.]{1})*?)?(?:"+("(?:"+a.replace(/[.]/g, "[.]")+")" for a of settings.hijacked).join("|")+")", "g"
+rDomains = new RegExp "(.|^)((?:https://)?(?:(?:[a-zA-Z0-9\-]+\\\\?[.]{1})*?)?(?:"+("(?:"+a.replace(/[.]/g, "\\\\?[.]")+")" for a of settings.hijacked).join("|")+"))", "g"
 rLookbehind = new RegExp "^[^a-zA-Z0-9\-.]?$"
+rDots = new RegExp "[.]", "g"
+
 redirectAllURLs = (str, redisClient, clientIP, _) ->
 	limiter = new Bottleneck 1
-	asyncReplace str, rDomains, ((found, lookbehind, position, text, _) ->
+	asyncReplace str, rDomains, ((whole, lookbehind, found, position, text, _) ->
 		if not rLookbehind.test(lookbehind) then return found # False positive. Javascript doesn't support real lookbehinds
-		if lookbehind.length > 0 then found = found[1..]
+
+		backslashes = if found.indexOf("\\") > 0 then true else false
 
 		parsed = url.parse found
 		parsed.path = ""
@@ -47,8 +51,12 @@ redirectAllURLs = (str, redisClient, clientIP, _) ->
 		if parsed.protocol? then parsed.protocol = "https"
 		hash = limiter.submit getHash, redisClient, parsed.hostname, clientIP, _
 		parsed.hostname = hash+"."+settings.hostTunnelingDomain
+
+		# Final formatting
 		formatted = url.format parsed
-		if formatted[0..1] == "//" then lookbehind+formatted[2..] else lookbehind+formatted
+		if formatted[0..1] == "//" then formatted = formatted[2..]
+		if backslashes then formatted = formatted.replace rDots, "\\."
+		lookbehind+formatted
 	), _
 
 module.exports = {getHash, redirectToHash, isAltered, redirectAllURLs}
