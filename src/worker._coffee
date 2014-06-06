@@ -277,19 +277,19 @@ handlerHostTunnel = (req, res, _) ->
 			else
 				res.writeHead pres.statusCode, pres.headers
 				isAltered = libHost.isAltered (pres.headers["Content-Type"] or pres.headers["content-type"])?.toLowerCase().split(";")[0].trim()
-				buffers = []
-				pres.on "data", (data) ->
-					if isAltered
+				if isAltered
+					buffers = []
+					pres.on "data", (data) ->
 						buffers.push data
-					else
-						res.write data
-				pres.on "end", ->
-					if isAltered
+					pres.on "end", ->
 						# TODO: Some kind of pumping mechanism instead of a giant buffer all at once
 						libHost.redirectAllURLs (new Buffer Buffer.concat buffers).toString("utf8"), redisClient, clientIP, {wantedDomain:hash}, (err, str) ->
 							if err? then throw err
 							res.end str, "utf8"
-					else
+				else
+					pres.on "data", (data) ->
+						res.write data
+					pres.on "end", ->
 						res.end()
 
 		preq.end()

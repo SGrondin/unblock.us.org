@@ -23,9 +23,14 @@ contentTypes = {
 isAltered = (ct) -> contentTypes[ct]?
 
 # This will probably need a lot of tweaking
-rDomains = new RegExp "(?:https://)?(?:(?:[a-zA-Z0-9\-]+[.]{1})*?)?(?:"+("(?:"+a.replace(/[.]/g, "[.]")+")" for a of settings.hijacked).join("|")+")", "g"
+# TODO: Document this monster
+rDomains = new RegExp "(.|^)(?:https://)?(?:(?:[a-zA-Z0-9\-]+[.]{1})*?)?(?:"+("(?:"+a.replace(/[.]/g, "[.]")+")" for a of settings.hijacked).join("|")+")", "g"
+rLookbehind = new RegExp "^[^a-zA-Z0-9\-.]?$"
 redirectAllURLs = (str, redisClient, clientIP, hashCache, _) ->
-	asyncReplace str, rDomains, ((found, f2, f3, _) ->
+	asyncReplace str, rDomains, ((found, lookbehind, position, text, _) ->
+		if not rLookbehind.test(lookbehind) then return found # False positive. Javascript doesn't support real lookbehinds
+		if lookbehind.length > 0 then found = found[1..]
+
 		parsed = url.parse found
 		parsed.path = ""
 		parsed.pathname = ""
@@ -40,7 +45,7 @@ redirectAllURLs = (str, redisClient, clientIP, hashCache, _) ->
 			hashCache[parsed.hostname] = hash
 			parsed.hostname = hash+"."+settings.hostTunnelingDomain
 		formatted = url.format parsed
-		if formatted[0..1] == "//" then formatted[2..] else formatted
+		if formatted[0..1] == "//" then lookbehind+formatted[2..] else lookbehind+formatted
 	), _
 
 module.exports = {getHash, redirectToHash, isAltered, redirectAllURLs}
