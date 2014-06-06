@@ -275,6 +275,11 @@ handlerHostTunnel = (req, res, _) ->
 					if err? then throw err
 					libHost.redirectToHash res, hash, req.url
 			else
+				# console.log util.inspect "------"
+				# console.log util.inspect wantedDomain
+				# console.log util.inspect req.url
+				# console.log util.inspect req.headers
+				# console.log util.inspect pres.headers
 				res.writeHead pres.statusCode, pres.headers
 				isAltered = libHost.isAltered (pres.headers["Content-Type"] or pres.headers["content-type"])?.toLowerCase().split(";")[0].trim()
 				if isAltered

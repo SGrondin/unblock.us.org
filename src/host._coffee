@@ -2,14 +2,20 @@ crypto = require "crypto"
 url = require "url"
 asyncReplace = require "async-replace"
 settings = require "../settings"
+Bottleneck = require "bottleneck"
 
 getHash = (redisClient, host, clientIP, _) ->
-	hash = (crypto.pseudoRandomBytes 16, _).toString "hex"
-	keys = ["hostTunneling-"+hash, "xforwardedfor-"+hash]
-	values = [host, clientIP]
-	keys.forEach_ _, -1, (_, k, i) ->
-		redisClient.set [k, values[i]], _
-		redisClient.expire [k, settings.hostTunnelingCaching], _
+	savedHashKey = "hash-"+clientIP+"-"+host
+	hash = redisClient.get savedHashKey, _
+
+	# That IP hasn't asked for that domain before
+	if not hash?
+		hash = (crypto.pseudoRandomBytes 16, _).toString "hex"
+		keys = ["hostTunneling-"+hash, "xforwardedfor-"+hash, savedHashKey]
+		values = [host, clientIP, hash]
+		keys.forEach_ _, -1, (_, k, i) ->
+			redisClient.set [k, values[i]], _
+			redisClient.expire [k, settings.hostTunnelingCaching], _
 	hash
 
 redirectToHash = (res, hash, path) ->
@@ -27,6 +33,7 @@ isAltered = (ct) -> contentTypes[ct]?
 rDomains = new RegExp "(.|^)(?:https://)?(?:(?:[a-zA-Z0-9\-]+[.]{1})*?)?(?:"+("(?:"+a.replace(/[.]/g, "[.]")+")" for a of settings.hijacked).join("|")+")", "g"
 rLookbehind = new RegExp "^[^a-zA-Z0-9\-.]?$"
 redirectAllURLs = (str, redisClient, clientIP, hashCache, _) ->
+	limiter = new Bottleneck 1
 	asyncReplace str, rDomains, ((found, lookbehind, position, text, _) ->
 		if not rLookbehind.test(lookbehind) then return found # False positive. Javascript doesn't support real lookbehinds
 		if lookbehind.length > 0 then found = found[1..]
@@ -38,10 +45,10 @@ redirectAllURLs = (str, redisClient, clientIP, hashCache, _) ->
 			parsed.hostname = parsed.href
 		parsed.host = null # Force the url module to use hostname+port
 		if parsed.protocol? then parsed.protocol = "https"
-		if hashCache[parsed.hostname]?
+		if hashCache[parsed.hostname]? and false
 			parsed.hostname = hashCache[parsed.hostname]+"."+settings.hostTunnelingDomain
 		else
-			hash = getHash redisClient, parsed.hostname, clientIP, _
+			hash = limiter.submit getHash, redisClient, parsed.hostname, clientIP, _
 			hashCache[parsed.hostname] = hash
 			parsed.hostname = hash+"."+settings.hostTunnelingDomain
 		formatted = url.format parsed
