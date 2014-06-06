@@ -261,41 +261,45 @@ handlerHostTunnel = (req, res, _) ->
 
 		keys.forEach_ _, -1, (_, k) ->
 			redisClient.expire [k, settings.hostTunnelingCaching], _
+
+		# Arrange the headers to server
 		req.headers.host = wantedDomain
-		req.headers["X-Forwarded-For"] = clientIP
+		req.headers.referer = "https://"+wantedDomain+"/"
+		if req.headers.origin? then req.headers.origin = "https://"+wantedDomain
+		req.headers["x-forwarded-for"] = clientIP
+		delete req.headers["accept-encoding"] # TODO: Add gzip support
 
+		# Open server connection
 		options = {hostname:wantedDomain, port:443, path:req.url, method:req.method, headers:req.headers}
-		delete options.headers["accept-encoding"] # TODO: Add gzip support
-
 		preq = https.request options, (pres) ->
-
 			if pres.statusCode in [301, 302]
-				host = (url.parse (pres.headers.Location or pres.headers.location))?.hostname
+				host = (url.parse pres.headers.location)?.hostname
 				libHost.getHash redisClient, host, clientIP, (err, hash) ->
 					if err? then throw err
 					libHost.redirectToHash res, hash, req.url
 			else
-				# console.log util.inspect "------"
-				# console.log util.inspect wantedDomain
-				# console.log util.inspect req.url
-				# console.log util.inspect req.headers
-				# console.log util.inspect pres.headers
-				res.writeHead pres.statusCode, pres.headers
-				isAltered = libHost.isAltered (pres.headers["Content-Type"] or pres.headers["content-type"])?.toLowerCase().split(";")[0].trim()
-				if isAltered
-					buffers = []
-					pres.on "data", (data) ->
-						buffers.push data
-					pres.on "end", ->
-						# TODO: Some kind of pumping mechanism instead of a giant buffer all at once
-						libHost.redirectAllURLs (new Buffer Buffer.concat buffers).toString("utf8"), redisClient, clientIP, {wantedDomain:hash}, (err, str) ->
-							if err? then throw err
-							res.end str, "utf8"
-				else
-					pres.on "data", (data) ->
-						res.write data
-					pres.on "end", ->
-						res.end()
+				# Arrange the headers to client
+				libHost.redirectAllURLs (pres.headers["access-control-allow-origin"] or ""), redisClient, clientIP, (err, fixedCors) ->
+					if err? then throw err
+					pres.headers["access-control-allow-origin"] = fixedCors
+
+
+					res.writeHead pres.statusCode, pres.headers
+					isAltered = libHost.isAltered pres.headers["content-type"]?.toLowerCase().split(";")[0].trim()
+					if isAltered
+						buffers = []
+						pres.on "data", (data) ->
+							buffers.push data
+						pres.on "end", ->
+							# TODO: Some kind of pumping mechanism instead of a giant buffer all at once
+							libHost.redirectAllURLs (new Buffer Buffer.concat buffers).toString("utf8"), redisClient, clientIP, (err, str) ->
+								if err? then throw err
+								res.end str, "utf8"
+					else
+						pres.on "data", (data) ->
+							res.write data
+						pres.on "end", ->
+							res.end()
 
 		preq.end()
 

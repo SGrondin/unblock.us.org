@@ -32,7 +32,7 @@ isAltered = (ct) -> contentTypes[ct]?
 # TODO: Document this monster
 rDomains = new RegExp "(.|^)(?:https://)?(?:(?:[a-zA-Z0-9\-]+[.]{1})*?)?(?:"+("(?:"+a.replace(/[.]/g, "[.]")+")" for a of settings.hijacked).join("|")+")", "g"
 rLookbehind = new RegExp "^[^a-zA-Z0-9\-.]?$"
-redirectAllURLs = (str, redisClient, clientIP, hashCache, _) ->
+redirectAllURLs = (str, redisClient, clientIP, _) ->
 	limiter = new Bottleneck 1
 	asyncReplace str, rDomains, ((found, lookbehind, position, text, _) ->
 		if not rLookbehind.test(lookbehind) then return found # False positive. Javascript doesn't support real lookbehinds
@@ -45,12 +45,8 @@ redirectAllURLs = (str, redisClient, clientIP, hashCache, _) ->
 			parsed.hostname = parsed.href
 		parsed.host = null # Force the url module to use hostname+port
 		if parsed.protocol? then parsed.protocol = "https"
-		if hashCache[parsed.hostname]? and false
-			parsed.hostname = hashCache[parsed.hostname]+"."+settings.hostTunnelingDomain
-		else
-			hash = limiter.submit getHash, redisClient, parsed.hostname, clientIP, _
-			hashCache[parsed.hostname] = hash
-			parsed.hostname = hash+"."+settings.hostTunnelingDomain
+		hash = limiter.submit getHash, redisClient, parsed.hostname, clientIP, _
+		parsed.hostname = hash+"."+settings.hostTunnelingDomain
 		formatted = url.format parsed
 		if formatted[0..1] == "//" then lookbehind+formatted[2..] else lookbehind+formatted
 	), _
