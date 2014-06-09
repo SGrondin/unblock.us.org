@@ -8,7 +8,7 @@
   },
   "license": "MIT",
   "dependencies":{
-    "bottleneck": "1.1.x",
+    "bottleneck": "1.2.x",
     "bitconcat": "0.3.x",
     "geoip-lite": "1.1.x",
     "http-proxy": "1.1.x",

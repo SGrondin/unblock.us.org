@@ -262,50 +262,35 @@ handlerHostTunnel = (req, res, _) ->
 		keys.forEach_ _, -1, (_, k) ->
 			redisClient.expire [k, settings.hostTunnelingCaching], _
 
-		# Arrange the headers to server
+		# Manipulate the headers to server
+		redirectionLimiter = new Bottleneck 1
 		req.headers.host = wantedDomain
 		req.headers.referer = "https://"+wantedDomain+"/"
 		if req.headers.origin? then req.headers.origin = "https://"+wantedDomain
 		req.headers["x-forwarded-for"] = clientIP
 		delete req.headers["accept-encoding"] # TODO: Add gzip support
+		if req.headers.cookie? then libHost.redirectAllURLs req.headers.cookie, redisClient, redirectionLimiter, clientIP, _
 
 		# Open server connection
 		options = {hostname:wantedDomain, port:443, path:req.url, method:req.method, headers:req.headers}
 		preq = https.request options, (pres) ->
-			if pres.statusCode in [301, 302]
+			pres.on "error", (err) -> if err? then throw err
+			if pres.statusCode in [301, 302, 307, 308]
 				host = (url.parse pres.headers.location)?.hostname
 				libHost.getHash redisClient, host, clientIP, (err, hash) ->
 					if err? then throw err
 					libHost.redirectToHash res, hash, req.url
 			else
-				# Arrange the headers to client
-				libHost.redirectAllURLs (pres.headers["access-control-allow-origin"] or ""), redisClient, clientIP, (err, fixedCors) ->
+				# Manipulate server data and send to client
+				libHost.sendCuratedData res, pres, redisClient, redirectionLimiter, clientIP, (err) ->
 					if err? then throw err
-					pres.headers["access-control-allow-origin"] = fixedCors
-
-
-					res.writeHead pres.statusCode, pres.headers
-					isAltered = libHost.isAltered pres.headers["content-type"]?.toLowerCase().split(";")[0].trim()
-					if isAltered
-						buffers = []
-						pres.on "data", (data) ->
-							buffers.push data
-						pres.on "end", ->
-							# TODO: Some kind of pumping mechanism instead of a giant buffer all at once
-							libHost.redirectAllURLs (new Buffer Buffer.concat buffers).toString("utf8"), redisClient, clientIP, (err, str) ->
-								if err? then throw err
-								res.end str, "utf8"
-					else
-						pres.on "data", (data) ->
-							res.write data
-						pres.on "end", ->
-							res.end()
 
 		preq.end()
 
 	catch err
 		con "handlerHostTunnel error", err, err.stack
 		close500 res
+		pres?.close()
 
 
 hostTunnelServer = https.createServer({

@@ -32,8 +32,10 @@ isAltered = (ct) -> contentTypes[ct]?
 # TODO: Document this monster
 rDomains = new RegExp "(.|^)(?:https://)?(?:(?:[a-zA-Z0-9\-]+[.]{1})*?)?(?:"+("(?:"+a.replace(/[.]/g, "[.]")+")" for a of settings.hijacked).join("|")+")", "g"
 rLookbehind = new RegExp "^[^a-zA-Z0-9\-.]?$"
-redirectAllURLs = (str, redisClient, clientIP, _) ->
-	limiter = new Bottleneck 1
+redirectAllURLs = (str, redisClient, limiter, clientIP, _) ->
+	if Array.isArray str # Cookies are arrays
+		return str.map_ _, -1, (_, s) ->
+			redirectAllURLs s, redisClient, limiter, clientIP, _
 	asyncReplace str, rDomains, ((found, lookbehind, position, text, _) ->
 		if not rLookbehind.test(lookbehind) then return found # False positive. Javascript doesn't support real lookbehinds
 		if lookbehind.length > 0 then found = found[1..]
@@ -51,4 +53,27 @@ redirectAllURLs = (str, redisClient, clientIP, _) ->
 		if formatted[0..1] == "//" then lookbehind+formatted[2..] else lookbehind+formatted
 	), _
 
-module.exports = {getHash, redirectToHash, isAltered, redirectAllURLs}
+sendCuratedData = (res, pres, redisClient, limiter, clientIP, _) ->
+	["access-control-allow-origin", "set-cookie"].forEach_ _, -1, (_, header) ->
+		if pres.headers[header]?.length > 0
+			pres.headers[header] = redirectAllURLs pres.headers[header], redisClient, limiter, clientIP, _
+
+	res.writeHead pres.statusCode, pres.headers
+	altered = isAltered pres.headers["content-type"]?.toLowerCase().split(";")[0].trim()
+	if altered
+		buffers = []
+		pres.on "data", (data) ->
+			buffers.push data
+		pres.on "end", ->
+			# TODO: Some kind of pumping mechanism instead of a giant buffer all at once
+			redirectAllURLs (new Buffer Buffer.concat buffers).toString("utf8"), redisClient, limiter, clientIP, (err, curatedPage) ->
+				if err? then throw err
+				res.end curatedPage, "utf8"
+	else
+		pres.on "data", (data) ->
+			res.write data
+		pres.on "end", ->
+			res.end()
+
+
+module.exports = {getHash, redirectToHash, redirectAllURLs, sendCuratedData}
