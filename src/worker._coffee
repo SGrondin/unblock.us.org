@@ -21,11 +21,8 @@ libTCP = require "./dns_tcp"
 libDNS = require "./dns"
 libHTTPS = require "./https"
 libHost = require "./host"
-# TODO: Integrate next version of Bottleneck
-# limiterUDP = new Bottleneck 250, 0
-# limiterTCP = new Bottleneck 250, 0
-# limiterHTTPS = new Bottleneck 250, 0
-# limiterHTTP = new Bottleneck 250, 0
+
+UDPlimiters = {}
 
 settings.hijacked[settings.hostTunnelingDomain] = settings.hostTunnelingDomain
 
@@ -112,10 +109,16 @@ handlerUDP = (socket, version, data, info, _) ->
 		redisClient.incr "udp.start"
 		parsed = libDNS.parseDNS data
 		answer = libDNS.getAnswer parsed, false
-		if answer?
-			socket.send answer, 0, answer.length, info.port, info.address
-		else
-			libUDP.toDNSserver DNSlistenServer, redisClient, data, info, version, parsed, _
+		# Rate limiting
+		limiterKey = info.address+"-"+parsed.QUESTION?.NAME?.join(".")
+		con limiterKey
+		if not UDPlimiters[limiterKey]? then UDPlimiters[limiterKey] = new Bottleneck 2, 50, 4, Bottleneck.strategy.LEAK
+		UDPlimiters[limiterKey].submit((cb) ->
+			if answer?
+				socket.send answer, 0, answer.length, info.port, info.address
+			else
+				libUDP.toDNSserver DNSlistenServer, redisClient, data, info, version, parsed, cb
+		, ->)
 	catch err
 		redisClient.incr "udp.fail"
 		redisClient.incr "udp.fail.start"
