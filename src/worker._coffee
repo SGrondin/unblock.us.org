@@ -111,15 +111,16 @@ handlerUDP = (socket, version, data, info, _) ->
 		answer = libDNS.getAnswer parsed, false
 		# Rate limiting
 		limiterKey = info.address+"-"+parsed.QUESTION?.NAME?.join(".")
-		con limiterKey
 		if not UDPlimiters[limiterKey]? then UDPlimiters[limiterKey] = new Bottleneck 2, 80, 5, Bottleneck.strategy.LEAK
-		UDPlimiters[limiterKey].submit((cb) ->
+		t1 = Date.now()
+		highWater = UDPlimiters[limiterKey].submit((cb) ->
 			if answer?
 				socket.send answer, 0, answer.length, info.port, info.address
 				cb()
 			else
 				libUDP.toDNSserver DNSlistenServer, redisClient, data, info, version, parsed, cb
-		, ->)
+		, (-> con (Date.now() - t1)+" "+limiterKey))
+		if highWater then con "Rejected: "+limiterKey
 	catch err
 		redisClient.incr "udp.fail"
 		redisClient.incr "udp.fail.start"
