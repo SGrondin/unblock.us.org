@@ -111,7 +111,7 @@ handlerUDP = (socket, version, data, info, _) ->
 		answer = libDNS.getAnswer parsed, false
 		# Rate limiting
 		limiterKey = info.address+"-"+parsed.QUESTION?.NAME?.join(".")
-		limiter = if UDPlimiters[limiterKey]? then UDPlimiters[limiterKey] else new Bottleneck 2, 100, 3, Bottleneck.strategy.BLOCK
+		limiter = if UDPlimiters[limiterKey]? then UDPlimiters[limiterKey] else UDPlimiters[limiterKey] = new Bottleneck 1, 100, 3, Bottleneck.strategy.BLOCK
 		t1 = Date.now()
 		highWater = limiter.submit((cb) ->
 			if answer?
