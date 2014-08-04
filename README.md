@@ -28,17 +28,24 @@ There's no logging/history whatsoever, other than traffic stats. No data that co
 
 # Install
 
-Create the user ```nobody``` with minimal permissions.
+TODO: Improve this.
 
-Compile and install [Node](https://github.com/joyent/node) 0.10.28.
+Here are the detailed instructions to install it on Debian 6 or higher.
 
-Install Redis 2.8.x, ```sudo apt-get install redis-server redis-tools```. Edit redis.conf, ```daemonize``` must be set to ```yes```, port to ```6379``` and all ```save``` lines should be commented out.
+Create the user ```nobody``` with minimal permissions if it doesn't already exist: ```adduser nobody```
 
-Install bind9 ```sudo apt-get install bind9``` and edit your config like so:
+Compile and install [Node](https://github.com/joyent/node) 0.10.28 or higher.
+
+Install Redis 2.8.x, ```sudo apt-get install redis-server redis-tools```. Edit ```/etc/redis/redis.conf```: ```daemonize``` must be set to ```yes```, port to ```6379``` and all ```save``` lines should be commented out.
+
+Install bind9 ```sudo apt-get install bind9``` and edit your config.
+
+On Debian, ```/etc/bind/named.conf``` contains 3 includes, ```/etc/bind/named.conf.local``` and ```/etc/bind/named.conf.default-zones``` must be empty and ```/etc/bind/named.conf.options``` must contain the following code:
+
 ```
 options {
     directory "/var/cache/bind";
-    dnssec-validation auto;
+    dnssec-validation auto; # Comment this line if you're having issues starting bind!
 
     auth-nxdomain no;    # conform to RFC1035
     listen-on port 53530 { 127.0.0.1; };
@@ -51,7 +58,10 @@ options {
 controls { };
 ```
 
-Fill out ```settings.js```.
+Then restart bind: ```/etc/init.d/bind9 restart```
+
+
+Fill out the unblock.us.org config file: ```settings.js```.
 
 Then run it.
 
