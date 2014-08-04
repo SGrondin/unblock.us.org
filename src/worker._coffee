@@ -24,7 +24,7 @@ libHost = require "./host"
 
 UDPlimiters = {}
 
-settings.hijacked[settings.hostTunnelingDomain] = settings.hostTunnelingDomain
+if settings.hostTunnelingEnabled then settings.hijacked[settings.hostTunnelingDomain] = settings.hostTunnelingDomain
 
 process.on "uncaughtException", (err) ->
 	con "!!! UNCAUGHT !!!"
@@ -36,7 +36,7 @@ shutdown = (cause, _) ->
 	con "worker PID", process.pid, "is shutting down:", cause
 	setTimeout process.exit, 10000
 	TCPserver.close _
-	hostTunnelServer.close _
+	hostTunnelServer?.close _
 	HTTPSserver.close _
 	HTTPserver.close _
 	(socket.close() for socket of UDPservers)
@@ -111,7 +111,8 @@ handlerUDP = (socket, version, data, info, _) ->
 		answer = libDNS.getAnswer parsed, false
 		# Rate limiting
 		limiterKey = info.address+"-"+parsed.QUESTION?.NAME?.join(".")
-		limiter = if UDPlimiters[limiterKey]? then UDPlimiters[limiterKey] else UDPlimiters[limiterKey] = new Bottleneck 1, 100, 3, Bottleneck.strategy.BLOCK
+		limiter = if UDPlimiters[limiterKey]? then UDPlimiters[limiterKey] else UDPlimiters[limiterKey] = new Bottleneck 1, 150, 2, Bottleneck.strategy.BLOCK
+		limiter.changePenalty 7000
 		t1 = Date.now()
 		highWater = limiter.submit((cb) ->
 			if answer?
@@ -119,7 +120,7 @@ handlerUDP = (socket, version, data, info, _) ->
 				cb()
 			else
 				libUDP.toDNSserver DNSlistenServer, redisClient, data, info, version, parsed, cb
-		, (-> con (Date.now() - t1)+" "+limiterKey))
+		, null)
 		if highWater
 			con "Rejected: "+limiterKey
 			redisClient.zincrby "ddos-ips", 1, info.address, _
@@ -189,7 +190,7 @@ handlerHTTP = (req, res, _) ->
 		analyzed = libDNS.hijackedDomain(req.headers.host.split("."))
 		if not req.headers.host? or not analyzed.domain? then return close500 res
 
-		if analyzed.hostTunneling
+		if settings.hostTunnelingEnabled and analyzed.hostTunneling
 			host = req.headers.host.split(".")[..-2].join(".")
 			clientIP = req.connection.remoteAddress
 			hash = libHost.getHash redisClient, host, clientIP, _
@@ -231,7 +232,7 @@ handlerHTTPS = (c, _) ->
 		analyzed = libDNS.hijackedDomain(hostArr)
 		if not analyzed.domain? then return c.destroy()
 
-		if hostArr[1..].join(".") == settings.hostTunnelingDomain
+		if settings.hostTunnelingEnabled and hostArr[1..].join(".") == settings.hostTunnelingDomain
 			[target, port] = ["127.0.0.1", port = settings.internalHostTunnelPort]
 		else
 			[target, port] = [host, 443]
@@ -299,15 +300,15 @@ handlerHostTunnel = (req, res, _) ->
 		close500 res
 		pres?.close()
 
-
-hostTunnelServer = https.createServer({
-	key:	fs.readFileSync(settings.wildcardKey),
-	cert:	fs.readFileSync(settings.wildcardCert)
-	}, (req, res) ->
-	handlerHostTunnel req, res, ->
-).listen settings.internalHostTunnelPort, "127.0.0.1", null, -> serverStarted "host"
-hostTunnelServer.on "error", (err) ->
-	con "hostTunnelServer error "+util.inspect(err)+" "+err.message
-	console.log err.stack
-hostTunnelServer.on "close", -> shutdown "hostTunnelServer closed", ->
+if settings.hostTunnelingEnabled
+	hostTunnelServer = https.createServer({
+		key:	fs.readFileSync(settings.wildcardKey),
+		cert:	fs.readFileSync(settings.wildcardCert)
+		}, (req, res) ->
+		handlerHostTunnel req, res, ->
+	).listen settings.internalHostTunnelPort, "127.0.0.1", null, -> serverStarted "host"
+	hostTunnelServer.on "error", (err) ->
+		con "hostTunnelServer error "+util.inspect(err)+" "+err.message
+		console.log err.stack
+	hostTunnelServer.on "close", -> shutdown "hostTunnelServer closed", ->
 

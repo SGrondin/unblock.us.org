@@ -8,12 +8,14 @@ module.exports = {
 	"forwardDNSport": 53530,
 	"httpPort" : 80,
 	"httpsPort" : 443,
+
+	"hostTunnelingEnabled": false,
 	"internalHostTunnelPort" : 15001,
 	"hostTunnelingCaching" : 1800,
-
-	"wildcardKey": "/home/don/REAL_SSL_WILDCARD/star_unblock_us_org.key",
-	"wildcardCert": "/home/don/REAL_SSL_WILDCARD/ssl/unblock.us.org.crt",
-
+	// "wildcardKey": "/home/don/REAL_SSL_WILDCARD/star_unblock_us_org.key",
+	// "wildcardCert": "/home/don/REAL_SSL_WILDCARD/ssl/unblock.us.org.crt",
+	"wildcardKey": "",
+	"wildcardCert": "",
 	"hostTunnelingDomain": "unblock.us.org",
 
 	"hijacked" : {
