@@ -43,7 +43,7 @@ createWorker = ->
 	timeout = setTimeout ->
 		console.log "worker "+id+" took too long to start, killing it"
 		worker?.kill()
-	, 3000
+	, 5000
 
 	worker.on "message", (message) ->
 		if message.cmd and message.cmd == "online"

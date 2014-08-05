@@ -63,7 +63,7 @@ services = {}
 serverStarted = (service) ->
 	try
 		services[service] = true
-		if services.udp4 and services.udp6 and services.tcp and services.host and services.https and services.http
+		if services.udp4 and services.udp6 and services.tcp and (if settings.hostTunnelingEnabled then services.host else true) and services.https and services.http
 			process.setuid "nobody"
 			con "Server ready", process.pid
 			process.send {cmd:"online"}
@@ -120,6 +120,7 @@ handlerUDP = (socket, version, data, info, _) ->
 				cb()
 			else
 				libUDP.toDNSserver DNSlistenServer, redisClient, data, info, version, parsed, cb
+		# , (-> con (Date.now() - t1)+" "+limiterKey))
 		, null)
 		if highWater
 			con "Rejected: "+limiterKey
