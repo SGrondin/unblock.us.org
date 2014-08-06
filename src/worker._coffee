@@ -23,6 +23,12 @@ libHTTPS = require "./https"
 libHost = require "./host"
 
 UDPlimiters = {}
+setInterval ->
+	for key,limiter of UDPlimiters
+		# Unused in the last 5 minutes
+		if (limiter._nextRequest+(60*1000*5)) < Date.now()
+			delete UDPlimiters[key]
+, 60*1000
 
 if settings.hostTunnelingEnabled then settings.hijacked[settings.hostTunnelingDomain] = settings.hostTunnelingDomain
 
@@ -120,7 +126,7 @@ handlerUDP = (socket, version, data, info, _) ->
 				cb()
 			else
 				libUDP.toDNSserver DNSlistenServer, redisClient, data, info, version, parsed, cb
-		# , (-> con (Date.now() - t1)+" "+limiterKey))
+		#, (-> con (Date.now() - t1)+" "+limiterKey))
 		, null)
 		if highWater
 			con "Rejected: "+limiterKey
